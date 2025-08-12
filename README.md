@@ -46,7 +46,7 @@ El **Generador de CV Inteligente** es una herramienta que:
 ### **Python 3.7+**
 ### **Librerías necesarias:**
 ```bash
-pip install python-docx reportlab
+pip install python-docx reportlab python-dotenv
 ```
 
 ### **Archivos requeridos:**
@@ -63,10 +63,19 @@ cd GeneradorDeCV
 
 ### 2. **Instalar dependencias**
 ```bash
-pip install python-docx reportlab
+pip install python-docx reportlab python-dotenv
 ```
 
-### 3. **Verificar archivos necesarios**
+### 3. **Configurar variables de entorno (IMPORTANTE)**
+```bash
+# Copiar archivo de ejemplo
+cp .env.example .env
+
+# Editar .env con tus datos reales
+# Configurar EMAIL_ADDRESS, EMAIL_PASSWORD, etc.
+```
+
+### 4. **Verificar archivos necesarios**
 Asegúrate de tener:
 - ✅ `generador_cv_avanzado.py`
 - ✅ `config.json`
@@ -239,6 +248,38 @@ Edita `config.json` en la sección `perfil_tecnico`:
   "salario_minimo_esperado_usd": 1000,
   "salario_maximo_esperado_usd": 3000
 }
+```
+
+## 📧 Configuración de Email
+
+### **1. Configurar archivo .env:**
+```bash
+# Editar .env con tus datos reales
+EMAIL_ENABLED=true
+EMAIL_ADDRESS=tu_email@gmail.com
+EMAIL_PASSWORD=tu_app_password_16_caracteres
+EMAIL_NOMBRE_COMPLETO=Tu Nombre Completo
+EMAIL_TELEFONO=+54 9 11 1234-5678
+```
+
+### **2. Para Gmail - Generar App Password:**
+1. Ir a [Google Account Settings](https://myaccount.google.com/security)
+2. Habilitar verificación en 2 pasos
+3. Generar "App Password" para la aplicación
+4. Usar ese password de 16 caracteres en `EMAIL_PASSWORD`
+
+### **3. Seguridad:**
+- ✅ El archivo `.env` está en `.gitignore` (no se sube al repositorio)
+- ✅ Nunca hardcodees credenciales en el código
+- ✅ Usa App Passwords, no tu contraseña personal
+
+### **4. Uso con emails:**
+```bash
+# Habilitar emails en modo interactivo
+python generador_cv_avanzado.py --email
+
+# Modo batch con emails automáticos
+python generador_cv_avanzado.py --batch postulaciones.csv --email
 ```
 
 ## 📈 Métricas y Estadísticas

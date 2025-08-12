@@ -92,5 +92,20 @@
         ]
       }
     }
+  },
+  "email_config": {
+    "enabled": "${EMAIL_ENABLED}",
+    "smtp_server": "${SMTP_SERVER}",
+    "smtp_port": "${SMTP_PORT}",
+    "email": "${EMAIL_ADDRESS}",
+    "password": "${EMAIL_PASSWORD}",
+    "nombre_completo": "${EMAIL_NOMBRE_COMPLETO}",
+    "telefono": "${EMAIL_TELEFONO}",
+    "templates": {
+      "asunto": "Aplicación para {posicion} - {nombre_completo}",
+      "cuerpo": "Estimados,\n\nMe dirijo a ustedes para aplicar a la posición de {posicion} publicada por {empresa}.\n\nAdjunto mi CV actualizado donde podrán encontrar mi experiencia en {tecnologias_principales}.\n\n{speech_personalizado}\n\nQuedo a disposición para una entrevista.\n\nSaludos cordiales,\n{nombre_completo}\n{telefono}\n{email}",
+      "follow_up_1": "Estimados,\n\nHace una semana envié mi CV para la posición de {posicion}. Quería consultarles sobre el estado del proceso de selección.\n\nSigo muy interesado en la oportunidad y quedo a disposición para cualquier información adicional.\n\nSaludos,\n{nombre_completo}",
+      "follow_up_2": "Estimados,\n\nQuería hacer un seguimiento sobre mi aplicación para {posicion} en {empresa}. \n\n¿Podrían darme una actualización sobre el proceso?\n\nGracias por su tiempo.\n\nSaludos,\n{nombre_completo}"
+    }
   }
 }

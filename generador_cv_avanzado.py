@@ -9,7 +9,23 @@ from reportlab.lib.styles import getSampleStyleSheet
 import json
 import logging
 import sqlite3
+import argparse
+import csv
+import smtplib
+from email.mime.multipart import MIMEMultipart
+from email.mime.text import MIMEText
+from email.mime.base import MIMEBase
+from email import encoders
 from typing import Optional, Dict, Any, List
+
+# Intentar cargar python-dotenv (opcional)
+try:
+    from dotenv import load_dotenv
+    load_dotenv()  # Cargar variables de entorno desde .env
+    DOTENV_AVAILABLE = True
+except ImportError:
+    DOTENV_AVAILABLE = False
+    logging.warning("python-dotenv no está instalado. Para usar .env: pip install python-dotenv")
 
 # Configurar logging con encoding UTF-8
 logging.basicConfig(
@@ -101,14 +117,47 @@ class GeneradorCVInteligente:
         }
 
     def cargar_configuracion(self, config_path: str) -> Dict[str, Any]:
-        """Carga la configuración desde archivo JSON"""
+        """Carga la configuración desde archivo JSON y procesa variables de entorno"""
         try:
             with open(config_path, 'r', encoding='utf-8') as f:
-                return json.load(f)
+                config_content = f.read()
+            
+            # Procesar variables de entorno
+            config_content = self.procesar_variables_entorno(config_content)
+            
+            # Parsear JSON
+            config = json.loads(config_content)
+            
+            return config
         except FileNotFoundError:
             raise ConfigurationError(f"Archivo de configuración no encontrado: {config_path}")
         except json.JSONDecodeError as e:
             raise ConfigurationError(f"Error en formato JSON: {e}")
+
+    def procesar_variables_entorno(self, content: str) -> str:
+        """Reemplaza variables de entorno en el contenido del config"""
+        import re
+        
+        # Buscar patrones ${VARIABLE}
+        def replace_env_var(match):
+            var_name = match.group(1)
+            env_value = os.getenv(var_name, match.group(0))  # Si no existe, mantener original
+            
+            # Convertir tipos específicos
+            if var_name in ['EMAIL_ENABLED']:
+                return 'true' if env_value.lower() in ['true', '1', 'yes', 'on'] else 'false'
+            elif var_name in ['SMTP_PORT', 'UMBRAL_FIT_DEFAULT']:
+                try:
+                    return str(int(env_value))
+                except (ValueError, TypeError):
+                    return env_value
+            else:
+                return env_value
+        
+        # Reemplazar todas las variables ${VAR_NAME}
+        processed_content = re.sub(r'\$\{([^}]+)\}', replace_env_var, content)
+        
+        return processed_content
 
     def validar_cv_base(self) -> bool:
         """Valida que el CV base exista y sea válido"""
@@ -408,6 +457,200 @@ class GeneradorCVInteligente:
                 print(f"   • {empresa} ({tipo}) | {fit}% | {fecha[:10]}")
         
         print("\n" + "="*60)
+
+    def procesar_batch_csv(self, archivo_csv: str) -> Dict[str, Any]:
+        """Procesa múltiples postulaciones desde archivo CSV"""
+        if not os.path.exists(archivo_csv):
+            raise FileProcessingError(f"Archivo CSV no encontrado: {archivo_csv}")
+        
+        resultados = {
+            'procesadas': 0,
+            'exitosas': 0,
+            'rechazadas': 0,
+            'errores': 0,
+            'detalle': []
+        }
+        
+        try:
+            with open(archivo_csv, 'r', encoding='utf-8') as file:
+                reader = csv.DictReader(file)
+                
+                for row in reader:
+                    empresa = row.get('empresa', '').strip()
+                    descripcion = row.get('descripcion', '').strip()
+                    
+                    if not empresa or not descripcion:
+                        print(f"⚠️ Fila incompleta ignorada: {empresa}")
+                        continue
+                    
+                    resultados['procesadas'] += 1
+                    print(f"\n{'='*50}")
+                    print(f"📝 Procesando {resultados['procesadas']}: {empresa}")
+                    
+                    try:
+                        resultado = self.procesar_postulacion(descripcion, empresa)
+                        
+                        if resultado:
+                            resultados['exitosas'] += 1
+                            resultados['detalle'].append({
+                                'empresa': empresa,
+                                'estado': 'exitosa',
+                                'tipo_posicion': resultado['tipo_posicion'],
+                                'cv_path': resultado['cv_path']
+                            })
+                            print(f"✅ {empresa}: CV generado exitosamente")
+                        else:
+                            resultados['rechazadas'] += 1
+                            resultados['detalle'].append({
+                                'empresa': empresa,
+                                'estado': 'rechazada',
+                                'razon': 'Fit insuficiente o fuera de estrategia'
+                            })
+                            print(f"❌ {empresa}: Rechazada (fit insuficiente)")
+                            
+                    except Exception as e:
+                        resultados['errores'] += 1
+                        resultados['detalle'].append({
+                            'empresa': empresa,
+                            'estado': 'error',
+                            'razon': str(e)
+                        })
+                        print(f"💥 {empresa}: Error - {e}")
+                        logging.error(f"Error procesando {empresa}: {e}")
+        
+        except Exception as e:
+            raise FileProcessingError(f"Error leyendo CSV: {e}")
+        
+        return resultados
+
+    def mostrar_resumen_batch(self, resultados: Dict[str, Any]):
+        """Muestra resumen de procesamiento batch"""
+        print("\n" + "="*60)
+        print("📊 RESUMEN DE PROCESAMIENTO BATCH")
+        print("="*60)
+        
+        print(f"\n📈 ESTADÍSTICAS:")
+        print(f"   • Total procesadas: {resultados['procesadas']}")
+        print(f"   • ✅ Exitosas: {resultados['exitosas']}")
+        print(f"   • ❌ Rechazadas: {resultados['rechazadas']}")
+        print(f"   • 💥 Errores: {resultados['errores']}")
+        
+        if resultados['procesadas'] > 0:
+            tasa_exito = (resultados['exitosas'] / resultados['procesadas']) * 100
+            print(f"   • 📊 Tasa de éxito: {tasa_exito:.1f}%")
+        
+        # Detalles por estado
+        if resultados['exitosas'] > 0:
+            print(f"\n✅ APLICACIONES EXITOSAS:")
+            for detalle in resultados['detalle']:
+                if detalle['estado'] == 'exitosa':
+                    print(f"   • {detalle['empresa']} ({detalle['tipo_posicion']})")
+        
+        if resultados['rechazadas'] > 0:
+            print(f"\n❌ APLICACIONES RECHAZADAS:")
+            for detalle in resultados['detalle']:
+                if detalle['estado'] == 'rechazada':
+                    print(f"   • {detalle['empresa']}: {detalle['razon']}")
+        
+        if resultados['errores'] > 0:
+            print(f"\n💥 ERRORES:")
+            for detalle in resultados['detalle']:
+                if detalle['estado'] == 'error':
+                    print(f"   • {detalle['empresa']}: {detalle['razon']}")
+        
+        print("\n" + "="*60)
+
+    def enviar_email_aplicacion(self, empresa: str, posicion: str, cv_path: str, speech: str, 
+                               email_destino: str = None) -> bool:
+        """Envía email de aplicación con CV adjunto"""
+        
+        if not self.config['email_config']['enabled']:
+            print("📧 Email deshabilitado en configuración")
+            return False
+        
+        if not email_destino:
+            email_destino = input(f"📧 Email para {empresa} (enter para omitir): ").strip()
+            if not email_destino:
+                print("⏭️ Envío de email omitido")
+                return False
+        
+        try:
+            email_config = self.config['email_config']
+            
+            # Crear mensaje
+            msg = MIMEMultipart()
+            msg['From'] = email_config['email']
+            msg['To'] = email_destino
+            
+            # Preparar variables para el template
+            tecnologias = self.extraer_tecnologias_principales(posicion)
+            variables = {
+                'posicion': posicion,
+                'empresa': empresa,
+                'nombre_completo': email_config['nombre_completo'],
+                'telefono': email_config['telefono'],
+                'email': email_config['email'],
+                'tecnologias_principales': ', '.join(tecnologias),
+                'speech_personalizado': speech
+            }
+            
+            # Asunto y cuerpo
+            asunto = email_config['templates']['asunto'].format(**variables)
+            cuerpo = email_config['templates']['cuerpo'].format(**variables)
+            
+            msg['Subject'] = asunto
+            msg.attach(MIMEText(cuerpo, 'plain', 'utf-8'))
+            
+            # Adjuntar CV
+            if os.path.exists(cv_path):
+                with open(cv_path, "rb") as attachment:
+                    part = MIMEBase('application', 'octet-stream')
+                    part.set_payload(attachment.read())
+                
+                encoders.encode_base64(part)
+                filename = os.path.basename(cv_path)
+                part.add_header(
+                    'Content-Disposition',
+                    f'attachment; filename= {filename}'
+                )
+                msg.attach(part)
+            
+            # Enviar email
+            server = smtplib.SMTP(email_config['smtp_server'], email_config['smtp_port'])
+            server.starttls()
+            server.login(email_config['email'], email_config['password'])
+            text = msg.as_string()
+            server.sendmail(email_config['email'], email_destino, text)
+            server.quit()
+            
+            print(f"📧 ✅ Email enviado exitosamente a {email_destino}")
+            logging.info(f"Email enviado a {empresa}: {email_destino}")
+            return True
+            
+        except Exception as e:
+            print(f"📧 ❌ Error enviando email: {e}")
+            logging.error(f"Error enviando email a {empresa}: {e}")
+            return False
+
+    def extraer_tecnologias_principales(self, posicion: str) -> List[str]:
+        """Extrae las tecnologías principales mencionadas en la posición"""
+        tecnologias_destacadas = []
+        posicion_lower = posicion.lower()
+        
+        # Buscar tecnologías clave en la posición
+        tech_importantes = {
+            'Python': ['python', 'fastapi', 'django', 'flask'],
+            'Java': ['java', 'spring', 'spring boot'],
+            'JavaScript': ['javascript', 'vue', 'react', 'angular', 'next.js'],
+            'QA': ['qa', 'testing', 'selenium', 'automation'],
+            'SQL': ['sql', 'postgresql', 'mysql', 'database']
+        }
+        
+        for tech_name, keywords in tech_importantes.items():
+            if any(kw in posicion_lower for kw in keywords):
+                tecnologias_destacadas.append(tech_name)
+        
+        return tecnologias_destacadas[:3]  # Máximo 3 tecnologías principales
 
     def detectar_tipo_empresa(self, texto_postulacion: str, empresa: str) -> str:
         """Detecta el tipo de empresa basado en la postulación y nombre"""
@@ -1011,7 +1254,14 @@ FECHA: {datetime.now().strftime("%Y-%m-%d %H:%M:%S")}
         except Exception as e:
             logging.warning(f"Error guardando en base de datos: {e}")
         
-        # 11. Guardar resumen completo
+        # 11. Ofrecer envío de email
+        if self.config['email_config']['enabled']:
+            try:
+                self.enviar_email_aplicacion(empresa, titulo_adaptado, nombre_pdf, speech)
+            except Exception as e:
+                logging.warning(f"Error en envío de email: {e}")
+        
+        # 12. Guardar resumen completo
         self.guardar_resumen(empresa, tipo_posicion, nivel, titulo_adaptado, keywords, speech, 
                            analisis_fit, nombre_pdf, path_postulacion)
         
@@ -1048,10 +1298,58 @@ FECHA: {datetime.now().strftime("%Y-%m-%d %H:%M:%S")}
         with open(resumen_path, 'w', encoding='utf-8') as f:
             json.dump(resumen, f, ensure_ascii=False, indent=2)
 
+def parse_arguments():
+    """Parsea argumentos de línea de comandos"""
+    parser = argparse.ArgumentParser(
+        description='Generador de CV Inteligente v3.0',
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog="""
+Ejemplos de uso:
+  python generador_cv_avanzado.py                          # Modo interactivo
+  python generador_cv_avanzado.py --batch postulaciones.csv # Modo batch
+  python generador_cv_avanzado.py --stats                   # Ver estadísticas
+  python generador_cv_avanzado.py --empresa "TechCorp" --postulacion "Descripción..." --email
+  python generador_cv_avanzado.py --batch postulaciones.csv --email # Batch con emails
+  python generador_cv_avanzado.py --umbral 80 --email       # Personalizar umbral y email
+        """
+    )
+    
+    parser.add_argument('--batch', '-b', 
+                        help='Procesar múltiples postulaciones desde archivo CSV')
+    parser.add_argument('--stats', '-s', action='store_true',
+                        help='Mostrar dashboard de estadísticas')
+    parser.add_argument('--empresa', '-e',
+                        help='Nombre de la empresa (modo directo)')
+    parser.add_argument('--postulacion', '-p',
+                        help='Descripción de la postulación (modo directo)')
+    parser.add_argument('--config', '-c', default='config.json',
+                        help='Archivo de configuración (default: config.json)')
+    parser.add_argument('--umbral', '-u', type=int,
+                        help='Umbral mínimo de fit (override config)')
+    parser.add_argument('--email', action='store_true',
+                        help='Habilitar envío automático de emails')
+    parser.add_argument('--email-to',
+                        help='Email destino para modo directo')
+    
+    return parser.parse_args()
+
 # FUNCIÓN PRINCIPAL
 def main():
+    args = parse_arguments()
+    
     try:
-        generador = GeneradorCVInteligente()  # Usa config.json por defecto
+        # Inicializar generador con configuración específica
+        generador = GeneradorCVInteligente(args.config)
+        
+        # Override configuraciones CLI
+        if args.umbral:
+            generador.umbral_fit = args.umbral
+            print(f"🎯 Umbral de fit personalizado: {args.umbral}%")
+        
+        if args.email:
+            generador.config['email_config']['enabled'] = True
+            print(f"📧 Email habilitado por CLI")
+            
         logging.info("Generador de CV iniciado correctamente")
     except (ConfigurationError, FileProcessingError) as e:
         print(f"❌ Error de inicialización: {e}")
@@ -1061,7 +1359,45 @@ def main():
         print(f"❌ Error inesperado: {e}")
         return
     
-    print(">>> Generador de CV Inteligente v3.0")
+    # Manejar diferentes modos de ejecución
+    if args.stats:
+        # Modo estadísticas
+        generador.mostrar_dashboard()
+        return
+    
+    if args.batch:
+        # Modo batch
+        print(">>> Generador de CV Inteligente v3.0 - MODO BATCH")
+        print(f"📁 Procesando archivo: {args.batch}")
+        print(f"🎯 Umbral mínimo de fit: {generador.umbral_fit}%\n")
+        
+        try:
+            resultados = generador.procesar_batch_csv(args.batch)
+            generador.mostrar_resumen_batch(resultados)
+        except Exception as e:
+            print(f"❌ Error en modo batch: {e}")
+        return
+    
+    if args.empresa and args.postulacion:
+        # Modo directo
+        print(">>> Generador de CV Inteligente v3.0 - MODO DIRECTO")
+        print(f"🏢 Empresa: {args.empresa}")
+        print(f"🎯 Umbral mínimo de fit: {generador.umbral_fit}%\n")
+        
+        try:
+            resultado = generador.procesar_postulacion(args.postulacion, args.empresa)
+            if resultado:
+                print(f"\n✅ ¡Proceso completado para {args.empresa}!")
+                print(f">>> Posición: {resultado['titulo']}")
+                print(f">>> CV guardado en: {resultado['cv_path']}")
+            else:
+                print(f"\n❌ Postulación no procesada (fuera de estrategia o fit insuficiente)")
+        except Exception as e:
+            print(f"❌ Error procesando postulación: {e}")
+        return
+    
+    # Modo interactivo (default)
+    print(">>> Generador de CV Inteligente v3.0 - MODO INTERACTIVO")
     print("🎯 Estrategia de aplicación:")
     print("   • Junior: QA, Python, Java, Frontend, Full Stack")
     print("   • Semi-Senior: QA, Python, Java, Full Stack")
@@ -1069,7 +1405,21 @@ def main():
     print("   • Rechazo automático: Áreas sin experiencia")
     print("\n💡 Comandos especiales:")
     print("   • 'stats' - Ver dashboard de estadísticas")
-    print("   • 'salir' - Terminar programa\n")
+    print("   • 'salir' - Terminar programa")
+    print("\n🔧 Comandos CLI disponibles:")
+    print("   • --batch archivo.csv  - Procesar múltiples postulaciones")
+    print("   • --stats              - Ver estadísticas") 
+    print("   • --email              - Habilitar envío automático de emails")
+    print("   • --help               - Ver ayuda completa")
+    
+    # Estado del email
+    email_status = "✅ HABILITADO" if generador.config['email_config']['enabled'] else "❌ DESHABILITADO"
+    print(f"\n📧 Estado de email: {email_status}")
+    if generador.config['email_config']['enabled']:
+        print(f"   • Configurado: {generador.config['email_config']['email']}")
+    else:
+        print("   • Para habilitar: actualizar config.json o usar --email")
+    print()
     
     while True:
         print("\n" + "="*50)

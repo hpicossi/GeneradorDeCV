@@ -6,6 +6,11 @@ cv_generados/*
 cv_hilario.docx
 *.docx
 
+# Variables de entorno (DATOS SENSIBLES)
+.env
+.env.local
+.env.production
+
 # Archivos de logs
 cv_generator.log
 *.log
