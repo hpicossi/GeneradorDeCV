@@ -7,16 +7,16 @@ from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer
 from reportlab.lib.pagesizes import A4
 from reportlab.lib.styles import getSampleStyleSheet
 import json
-# Agregar al inicio del script:
 import logging
-from typing import Optional, Dict, Any
+import sqlite3
+from typing import Optional, Dict, Any, List
 
-# Configurar logging
+# Configurar logging con encoding UTF-8
 logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s - %(levelname)s - %(message)s',
     handlers=[
-        logging.FileHandler('cv_generator.log'),
+        logging.FileHandler('cv_generator.log', encoding='utf-8'),
         logging.StreamHandler()
     ]
 )
@@ -51,6 +51,10 @@ class GeneradorCVInteligente:
             raise FileProcessingError("CV base no válido")
             
         os.makedirs(self.carpeta_salida, exist_ok=True)
+        
+        # Inicializar base de datos
+        self.db_path = "aplicaciones.db"
+        self.inicializar_base_datos()
         
         # Adaptaciones del CV según el tipo de posición
         self.adaptaciones_cv = {
@@ -120,11 +124,11 @@ class GeneradorCVInteligente:
             except Exception as e:
                 raise FileProcessingError(f"Error leyendo CV base: {e}")
             
-            logging.info(f"✅ CV base validado: {self.cv_base_path}")
+            logging.info(f"CV base validado: {self.cv_base_path}")
             return True
             
         except FileProcessingError as e:
-            logging.error(f"❌ Error validando CV base: {e}")
+            logging.error(f"Error validando CV base: {e}")
             return False
 
     def detectar_salario(self, texto_postulacion: str) -> Dict[str, Any]:
@@ -192,6 +196,240 @@ class GeneradorCVInteligente:
                 resultado['alertas'].append(f"✅ Salario competitivo: ${resultado['rango_min']} USD")
         
         return resultado
+
+    def inicializar_base_datos(self):
+        """Inicializa la base de datos SQLite"""
+        try:
+            conn = sqlite3.connect(self.db_path)
+            cursor = conn.cursor()
+            
+            # Crear tabla de aplicaciones
+            cursor.execute('''
+                CREATE TABLE IF NOT EXISTS aplicaciones (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    empresa TEXT NOT NULL,
+                    tipo_posicion TEXT NOT NULL,
+                    nivel_seniority TEXT NOT NULL,
+                    fecha_aplicacion DATETIME NOT NULL,
+                    fit_percentage INTEGER NOT NULL,
+                    salario_detectado REAL,
+                    moneda TEXT,
+                    keywords TEXT,
+                    cv_path TEXT,
+                    postulacion_path TEXT,
+                    estado TEXT DEFAULT 'enviado',
+                    notas TEXT,
+                    fecha_respuesta DATETIME,
+                    fecha_entrevista DATETIME,
+                    resultado_final TEXT
+                )
+            ''')
+            
+            # Crear tabla de estadísticas
+            cursor.execute('''
+                CREATE TABLE IF NOT EXISTS estadisticas_diarias (
+                    fecha DATE PRIMARY KEY,
+                    aplicaciones_enviadas INTEGER DEFAULT 0,
+                    entrevistas_obtenidas INTEGER DEFAULT 0,
+                    ofertas_recibidas INTEGER DEFAULT 0,
+                    fit_promedio REAL DEFAULT 0
+                )
+            ''')
+            
+            conn.commit()
+            conn.close()
+            logging.info("Base de datos inicializada correctamente")
+            
+        except Exception as e:
+            logging.error(f"Error inicializando base de datos: {e}")
+            raise FileProcessingError(f"Error con base de datos: {e}")
+
+    def guardar_aplicacion_db(self, empresa: str, tipo_posicion: str, nivel: str, 
+                            fit_percentage: int, salario_info: Dict, keywords: List[str],
+                            cv_path: str, postulacion_path: str) -> int:
+        """Guarda una aplicación en la base de datos"""
+        try:
+            conn = sqlite3.connect(self.db_path)
+            cursor = conn.cursor()
+            
+            # Convertir datetime a string para evitar warnings
+            fecha_actual = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            fecha_hoy_str = datetime.now().strftime("%Y-%m-%d")
+            
+            cursor.execute('''
+                INSERT INTO aplicaciones (
+                    empresa, tipo_posicion, nivel_seniority, fecha_aplicacion,
+                    fit_percentage, salario_detectado, moneda, keywords,
+                    cv_path, postulacion_path
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ''', (
+                empresa, tipo_posicion, nivel, fecha_actual,
+                fit_percentage, 
+                salario_info.get('rango_min'), 
+                salario_info.get('moneda'),
+                ', '.join(keywords),
+                cv_path, postulacion_path
+            ))
+            
+            aplicacion_id = cursor.lastrowid
+            
+            # Actualizar estadísticas diarias
+            cursor.execute('''
+                INSERT OR IGNORE INTO estadisticas_diarias (fecha, aplicaciones_enviadas, fit_promedio)
+                VALUES (?, 1, ?)
+            ''', (fecha_hoy_str, fit_percentage))
+            
+            cursor.execute('''
+                UPDATE estadisticas_diarias 
+                SET aplicaciones_enviadas = aplicaciones_enviadas + 1,
+                    fit_promedio = (
+                        SELECT AVG(fit_percentage) 
+                        FROM aplicaciones 
+                        WHERE DATE(fecha_aplicacion) = ?
+                    )
+                WHERE fecha = ?
+            ''', (fecha_hoy_str, fecha_hoy_str))
+            
+            conn.commit()
+            conn.close()
+            
+            logging.info(f"Aplicacion guardada en DB: ID {aplicacion_id}")
+            return aplicacion_id
+            
+        except Exception as e:
+            logging.error(f"Error guardando en DB: {e}")
+            return 0
+
+    def obtener_estadisticas(self) -> Dict[str, Any]:
+        """Obtiene estadísticas generales de aplicaciones"""
+        try:
+            conn = sqlite3.connect(self.db_path)
+            cursor = conn.cursor()
+            
+            # Estadísticas generales
+            cursor.execute('SELECT COUNT(*) FROM aplicaciones')
+            total_aplicaciones = cursor.fetchone()[0]
+            
+            cursor.execute('SELECT AVG(fit_percentage) FROM aplicaciones')
+            fit_promedio = cursor.fetchone()[0] or 0
+            
+            # Por tipo de posición
+            cursor.execute('''
+                SELECT tipo_posicion, COUNT(*), AVG(fit_percentage), AVG(salario_detectado)
+                FROM aplicaciones 
+                GROUP BY tipo_posicion
+                ORDER BY COUNT(*) DESC
+            ''')
+            por_tipo = cursor.fetchall()
+            
+            # Por empresa
+            cursor.execute('''
+                SELECT empresa, COUNT(*), MAX(fecha_aplicacion)
+                FROM aplicaciones 
+                GROUP BY empresa
+                ORDER BY COUNT(*) DESC
+                LIMIT 10
+            ''')
+            por_empresa = cursor.fetchall()
+            
+            # Últimas 7 aplicaciones
+            cursor.execute('''
+                SELECT empresa, tipo_posicion, fit_percentage, fecha_aplicacion
+                FROM aplicaciones 
+                ORDER BY fecha_aplicacion DESC
+                LIMIT 7
+            ''')
+            ultimas_aplicaciones = cursor.fetchall()
+            
+            # Estadísticas salariales
+            cursor.execute('''
+                SELECT moneda, AVG(salario_detectado), MIN(salario_detectado), MAX(salario_detectado)
+                FROM aplicaciones 
+                WHERE salario_detectado IS NOT NULL
+                GROUP BY moneda
+            ''')
+            estadisticas_salarios = cursor.fetchall()
+            
+            conn.close()
+            
+            return {
+                'total_aplicaciones': total_aplicaciones,
+                'fit_promedio': round(fit_promedio, 1),
+                'por_tipo_posicion': por_tipo,
+                'por_empresa': por_empresa,
+                'ultimas_aplicaciones': ultimas_aplicaciones,
+                'estadisticas_salarios': estadisticas_salarios
+            }
+            
+        except Exception as e:
+            logging.error(f"Error obteniendo estadísticas: {e}")
+            return {}
+
+    def mostrar_dashboard(self):
+        """Muestra dashboard de estadísticas en consola"""
+        stats = self.obtener_estadisticas()
+        
+        if not stats:
+            print("❌ No hay datos para mostrar")
+            return
+            
+        print("\n" + "="*60)
+        print("📊 DASHBOARD DE ESTADÍSTICAS")
+        print("="*60)
+        
+        # Resumen general
+        print(f"\n📈 RESUMEN GENERAL:")
+        print(f"   • Total aplicaciones: {stats['total_aplicaciones']}")
+        print(f"   • Fit promedio: {stats['fit_promedio']}%")
+        
+        # Por tipo de posición
+        if stats['por_tipo_posicion']:
+            print(f"\n🎯 POR TIPO DE POSICIÓN:")
+            for tipo, count, fit_avg, salario_avg in stats['por_tipo_posicion']:
+                salario_str = f" | Salario prom: ${int(salario_avg)}" if salario_avg else ""
+                print(f"   • {tipo}: {count} aplicaciones | Fit: {fit_avg:.1f}%{salario_str}")
+        
+        # Por empresa
+        if stats['por_empresa']:
+            print(f"\n🏢 TOP EMPRESAS:")
+            for empresa, count, ultima_fecha in stats['por_empresa'][:5]:
+                print(f"   • {empresa}: {count} aplicaciones | Última: {ultima_fecha[:10]}")
+        
+        # Estadísticas salariales
+        if stats['estadisticas_salarios']:
+            print(f"\n💰 SALARIOS DETECTADOS:")
+            for moneda, promedio, minimo, maximo in stats['estadisticas_salarios']:
+                print(f"   • {moneda}: ${int(promedio)} promedio (${int(minimo)} - ${int(maximo)})")
+        
+        # Últimas aplicaciones
+        if stats['ultimas_aplicaciones']:
+            print(f"\n🕒 ÚLTIMAS APLICACIONES:")
+            for empresa, tipo, fit, fecha in stats['ultimas_aplicaciones']:
+                print(f"   • {empresa} ({tipo}) | {fit}% | {fecha[:10]}")
+        
+        print("\n" + "="*60)
+
+    def detectar_tipo_empresa(self, texto_postulacion: str, empresa: str) -> str:
+        """Detecta el tipo de empresa basado en la postulación y nombre"""
+        texto = (texto_postulacion + " " + empresa).lower()
+        
+        puntuaciones = {}
+        
+        for tipo_empresa, config in self.config['templates_empresa'].items():
+            puntuacion = 0
+            for keyword in config['keywords']:
+                if keyword in texto:
+                    puntuacion += 1
+            puntuaciones[tipo_empresa] = puntuacion
+        
+        # Encontrar el tipo con mayor puntuación
+        if max(puntuaciones.values()) > 0:
+            tipo_detectado = max(puntuaciones, key=puntuaciones.get)
+            logging.info(f"Tipo de empresa detectado: {tipo_detectado}")
+            return tipo_detectado
+        
+        # Por defecto, si no detecta nada específico
+        return 'producto'  # Más neutral
 
     def cargar_cv_base(self):
         """Carga el CV base desde archivo Word"""
@@ -480,11 +718,15 @@ class GeneradorCVInteligente:
         
         return recomendaciones
 
-    def adaptar_cv(self, cv_base, tipo_posicion, nivel, keywords_encontradas, empresa):
-        """Adapta el CV según el tipo de posición y nivel detectado"""
+    def adaptar_cv(self, cv_base, tipo_posicion, nivel, keywords_encontradas, empresa, texto_postulacion):
+        """Adapta el CV según el tipo de posición, nivel y tipo de empresa detectado"""
         adaptacion = self.adaptaciones_cv.get(tipo_posicion, self.adaptaciones_cv['qa_manual'])
         
-        # 1. Modificar título principal según el nivel
+        # Detectar tipo de empresa
+        tipo_empresa = self.detectar_tipo_empresa(texto_postulacion, empresa)
+        template_empresa = self.config['templates_empresa'][tipo_empresa]
+        
+        # 1. Modificar título principal según el nivel y tipo de empresa
         titulo_adaptado = adaptacion['titulo']
         if tipo_posicion == 'desarrollador_java':
             if nivel == 'junior':
@@ -494,12 +736,16 @@ class GeneradorCVInteligente:
             elif nivel == 'senior':
                 titulo_adaptado = 'Java Senior Developer & QA Engineer'
         
-        cv_adaptado = cv_base.replace('QA Engineer', titulo_adaptado)
+        # Agregar sufijo según tipo de empresa
+        titulo_adaptado += template_empresa['adaptaciones']['titulo_suffix']
         
-        # 2. Mejorar el perfil profesional integrando la especialización
+        cv_adaptado = cv_base.replace('QA Engineer', titulo_adaptado)
+        print(f">>> 🏢 Empresa tipo: {tipo_empresa} | Título adaptado: {titulo_adaptado}")
+        
+        # 2. Mejorar el perfil profesional integrando la especialización y tipo de empresa
         perfil_original = "QA Engineer y Full Stack Developer con experiencia en validación de datos, pruebas de sistemas y desarrollo de aplicaciones en entornos ágiles y arquitecturas de microservicios."
         
-        perfil_mejorado = f"{adaptacion['titulo']} con experiencia en validación de datos, pruebas de sistemas y desarrollo de aplicaciones en entornos ágiles y arquitecturas de microservicios. {adaptacion['resumen_adicional']}"
+        perfil_mejorado = f"{adaptacion['titulo']} con experiencia en validación de datos, pruebas de sistemas y desarrollo de aplicaciones en entornos ágiles y arquitecturas de microservicios. {adaptacion['resumen_adicional']} {template_empresa['adaptaciones']['enfoque_experiencia']}"
         
         cv_adaptado = cv_adaptado.replace(perfil_original, perfil_mejorado)
         
@@ -507,6 +753,11 @@ class GeneradorCVInteligente:
         logros_adicionales = "\n\nExperiencias Técnicas Destacadas:\n"
         for exp in adaptacion['experiencias_extra']:
             logros_adicionales += f"• {exp}\n"
+        
+        # Agregar experiencias específicas del tipo de empresa
+        logros_adicionales += f"\nExperiencias orientadas a {tipo_empresa.title()}:\n"
+        for exp_empresa in template_empresa['adaptaciones']['logros_adicionales']:
+            logros_adicionales += f"• {exp_empresa}\n"
         
         # Agregar experiencias técnicas específicas según keywords
         logros_tecnicos = self.generar_experiencias_tecnicas_especificas(keywords_encontradas, tipo_posicion)
@@ -725,7 +976,7 @@ FECHA: {datetime.now().strftime("%Y-%m-%d %H:%M:%S")}
         print(f"✅ FIT APROPIADO ({analisis_fit['fit_percentage']}%) - Generando CV...")
         
         # 6. Adaptar CV (solo si fit >= 70%)
-        cv_adaptado, titulo_adaptado = self.adaptar_cv(cv_base, tipo_posicion, nivel, keywords, empresa)
+        cv_adaptado, titulo_adaptado = self.adaptar_cv(cv_base, tipo_posicion, nivel, keywords, empresa, texto_postulacion)
         
         # 7. Generar archivos
         timestamp = datetime.now().strftime("%Y%m%d_%H%M")
@@ -750,7 +1001,17 @@ FECHA: {datetime.now().strftime("%Y-%m-%d %H:%M:%S")}
         if analisis_fit['brechas']:
             print(f">>> Áreas a considerar en entrevista: {', '.join(analisis_fit['brechas'])}")
         
-        # 10. Guardar resumen completo
+        # 10. Guardar en base de datos
+        try:
+            self.guardar_aplicacion_db(
+                empresa, tipo_posicion, nivel, analisis_fit['fit_percentage'],
+                info_salario if 'info_salario' in locals() else {}, keywords,
+                nombre_pdf, path_postulacion
+            )
+        except Exception as e:
+            logging.warning(f"Error guardando en base de datos: {e}")
+        
+        # 11. Guardar resumen completo
         self.guardar_resumen(empresa, tipo_posicion, nivel, titulo_adaptado, keywords, speech, 
                            analisis_fit, nombre_pdf, path_postulacion)
         
@@ -791,7 +1052,7 @@ FECHA: {datetime.now().strftime("%Y-%m-%d %H:%M:%S")}
 def main():
     try:
         generador = GeneradorCVInteligente()  # Usa config.json por defecto
-        logging.info("🚀 Generador de CV iniciado correctamente")
+        logging.info("Generador de CV iniciado correctamente")
     except (ConfigurationError, FileProcessingError) as e:
         print(f"❌ Error de inicialización: {e}")
         return
@@ -800,19 +1061,25 @@ def main():
         print(f"❌ Error inesperado: {e}")
         return
     
-    print(">>> Generador de CV Inteligente v2.0")
+    print(">>> Generador de CV Inteligente v3.0")
     print("🎯 Estrategia de aplicación:")
     print("   • Junior: QA, Python, Java, Frontend, Full Stack")
     print("   • Semi-Senior: QA, Python, Java, Full Stack")
     print(f"   • Umbral mínimo de fit: {generador.umbral_fit}%")
-    print("   • Rechazo automático: Áreas sin experiencia\n")
+    print("   • Rechazo automático: Áreas sin experiencia")
+    print("\n💡 Comandos especiales:")
+    print("   • 'stats' - Ver dashboard de estadísticas")
+    print("   • 'salir' - Terminar programa\n")
     
     while True:
         print("\n" + "="*50)
-        empresa = input(">>> Nombre de la empresa (o 'salir' para terminar): ").strip()
+        empresa = input(">>> Nombre de la empresa (o comando especial): ").strip()
         
         if empresa.lower() == 'salir':
             break
+        elif empresa.lower() == 'stats':
+            generador.mostrar_dashboard()
+            continue
             
         texto_postulacion = input("\n>>> Pega la descripción de la postulación:\n").strip()
         

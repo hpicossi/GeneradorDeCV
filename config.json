@@ -42,5 +42,55 @@
       "primer_seguimiento": "Hola! Hace una semana envié mi CV para la posición de {posicion} en {empresa}. ¿Podrían darme un update sobre el estado del proceso? Gracias!",
       "segundo_seguimiento": "Hola! Quería hacer un seguimiento sobre mi aplicación para {posicion}. Sigo muy interesado en la oportunidad. ¿Hay alguna actualización? Gracias!"
     }
+  },
+  "templates_empresa": {
+    "startup": {
+      "keywords": ["startup", "emprendimiento", "innovación", "disruptivo", "ágil", "dinámico", "crecimiento", "scaleup"],
+      "adaptaciones": {
+        "titulo_suffix": " | Apasionado por la Innovación",
+        "enfoque_experiencia": "Experiencia en entornos dinámicos y adaptables con enfoque en crecimiento rápido",
+        "logros_adicionales": [
+          "Adaptabilidad a cambios rápidos y múltiples responsabilidades en proyectos",
+          "Enfoque en soluciones innovadoras y experimentación con nuevas tecnologías",
+          "Mentalidad de crecimiento y aprendizaje continuo en entornos desafiantes"
+        ]
+      }
+    },
+    "corporacion": {
+      "keywords": ["multinacional", "corporación", "enterprise", "gran empresa", "corporativo", "consolidada", "líder"],
+      "adaptaciones": {
+        "titulo_suffix": " | Experiencia en Proyectos Escalables",
+        "enfoque_experiencia": "Experiencia en desarrollo de sistemas robustos y escalables siguiendo mejores prácticas corporativas",
+        "logros_adicionales": [
+          "Desarrollo siguiendo estándares corporativos y mejores prácticas de la industria",
+          "Experiencia en proyectos de gran escala con múltiples stakeholders",
+          "Documentación detallada y procesos estructurados de desarrollo"
+        ]
+      }
+    },
+    "consultora": {
+      "keywords": ["consultora", "consulting", "servicios", "cliente", "proyectos", "consultoría"],
+      "adaptaciones": {
+        "titulo_suffix": " | Enfoque Multi-Cliente",
+        "enfoque_experiencia": "Experiencia versátil adaptándose a diferentes clientes y tecnologías en proyectos diversos",
+        "logros_adicionales": [
+          "Adaptación rápida a diferentes entornos tecnológicos y metodologías de cliente",
+          "Experiencia trabajando con múltiples stakeholders y requerimientos cambiantes",
+          "Capacidad de comunicación técnica efectiva con equipos multidisciplinarios"
+        ]
+      }
+    },
+    "producto": {
+      "keywords": ["producto", "saas", "plataforma", "software", "app", "digital"],
+      "adaptaciones": {
+        "titulo_suffix": " | Orientado a Producto",
+        "enfoque_experiencia": "Experiencia enfocada en desarrollo de productos digitales con impacto directo en usuarios finales",
+        "logros_adicionales": [
+          "Desarrollo centrado en experiencia de usuario y métricas de producto",
+          "Colaboración estrecha con equipos de UX/UI y Product Management",
+          "Enfoque en calidad del código y testing para productos críticos"
+        ]
+      }
+    }
   }
 }

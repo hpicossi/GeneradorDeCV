@@ -10,6 +10,10 @@ cv_hilario.docx
 cv_generator.log
 *.log
 
+# Base de datos
+aplicaciones.db
+*.db
+
 # Archivos temporales de Python
 __pycache__/
 *.py[cod]
