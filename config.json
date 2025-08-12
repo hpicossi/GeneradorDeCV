@@ -1,0 +1,46 @@
+{
+  "configuracion_general": {
+    "umbral_fit": 70,
+    "cv_base_path": "cv_hilario.docx",
+    "carpeta_salida": "cv_generados"
+  },
+  "perfil_tecnico": {
+    "qa_manual": ["testing", "qa", "manual", "casos de prueba", "validaciones", "evidencias", "funcional", "quality assurance"],
+    "qa_automatizacion": ["selenium", "automatización", "automation", "locust", "pruebas de carga", "page object", "cypress", "unit testing", "pruebas unitarias"],
+    "backend_python": ["python", "fastapi", "flask", "django", "rest", "api", "postgresql", "mysql"],
+    "backend_java": ["java", "spring", "spring boot", "maven", "hibernate", "jvm"],
+    "backend_dotnet": [".net", "dotnet", "c#", "entity framework", "asp.net", "sql server", "oracle"],
+    "frontend": ["angular", "vue", "react", "next.js", "quasar", "javascript", "typescript", "html", "css", "frontend"],
+    "herramientas": ["postman", "git", "github", "scrum", "kanban", "jira", "agile", "ágiles", "metodologías"],
+    "bases_datos": ["postgresql", "mysql", "sql server", "oracle", "sql", "base de datos", "database", "bd"],
+    "ci_cd": ["jenkins", "github actions", "ci/cd", "sonarqube", "docker", "deploy"],
+    "mensajeria": ["kafka", "rabbitmq", "message queue", "colas", "mensajería"],
+    "otros": ["microservicios", "microservices", "webservices", "full stack", "desarrollador", "developer", "orm", "dapper"]
+  },
+  "tecnologias_no_conocidas": ["oracle", "visual basic", "vb.net", ".net", "c#", "php", "ruby", "rust", "cobol", "mainframe", "sap", "salesforce", "sharepoint"],
+  "estrategia_aplicacion": {
+    "junior": ["qa_manual", "qa_automatizacion", "desarrollador_python", "desarrollador_java", "desarrollador_frontend", "desarrollador_fullstack"],
+    "semi_senior": ["qa_manual", "qa_automatizacion", "desarrollador_python", "desarrollador_fullstack", "desarrollador_java"],
+    "senior": []
+  },
+  "deteccion_salarios": {
+    "patrones_peso": ["\\$\\s*(\\d+(?:\\.\\d{3})*)", "pesos\\s*(\\d+(?:\\.\\d{3})*)", "ars\\s*(\\d+(?:\\.\\d{3})*)"],
+    "patrones_dolar": ["usd\\s*(\\d+(?:\\.\\d{3})*)", "dolares?\\s*(\\d+(?:\\.\\d{3})*)", "\\$\\s*(\\d+(?:\\.\\d{3})*)\\s*usd"],
+    "salario_minimo_esperado_usd": 800,
+    "salario_maximo_esperado_usd": 2500
+  },
+  "alertas_competencia": {
+    "alta_competencia": ["muchos candidatos", "proceso competitivo", "gran cantidad de postulantes", "muchas aplicaciones"],
+    "requisitos_estrictos": ["excluyente", "indispensable", "obligatorio", "requerido", "must have"],
+    "urgente": ["urgente", "inmediato", "asap", "lo antes posible", "pronta incorporación"]
+  },
+  "followup_config": {
+    "dias_primer_seguimiento": 7,
+    "dias_segundo_seguimiento": 14,
+    "dias_descarte_automatico": 30,
+    "templates": {
+      "primer_seguimiento": "Hola! Hace una semana envié mi CV para la posición de {posicion} en {empresa}. ¿Podrían darme un update sobre el estado del proceso? Gracias!",
+      "segundo_seguimiento": "Hola! Quería hacer un seguimiento sobre mi aplicación para {posicion}. Sigo muy interesado en la oportunidad. ¿Hay alguna actualización? Gracias!"
+    }
+  }
+}

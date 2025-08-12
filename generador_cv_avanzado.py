@@ -7,28 +7,50 @@ from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer
 from reportlab.lib.pagesizes import A4
 from reportlab.lib.styles import getSampleStyleSheet
 import json
+# Agregar al inicio del script:
+import logging
+from typing import Optional, Dict, Any
+
+# Configurar logging
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(levelname)s - %(message)s',
+    handlers=[
+        logging.FileHandler('cv_generator.log'),
+        logging.StreamHandler()
+    ]
+)
+
+class CVGeneratorError(Exception):
+    """Excepción personalizada para errores del generador"""
+    pass
+
+class ConfigurationError(CVGeneratorError):
+    """Error de configuración"""
+    pass
+
+class FileProcessingError(CVGeneratorError):
+    """Error procesando archivos"""
+    pass
 
 class GeneradorCVInteligente:
-    def __init__(self, umbral_fit=70):
-        self.cv_base_path = "cv_hilario.docx"
-        self.carpeta_salida = "cv_generados"
-        self.umbral_fit = umbral_fit  # Umbral mínimo de fit para generar CV
-        os.makedirs(self.carpeta_salida, exist_ok=True)
+    def __init__(self, config_path="config.json"):
+        # Cargar configuración
+        try:
+            self.config = self.cargar_configuracion(config_path)
+            self.cv_base_path = self.config['configuracion_general']['cv_base_path']
+            self.carpeta_salida = self.config['configuracion_general']['carpeta_salida']
+            self.umbral_fit = self.config['configuracion_general']['umbral_fit']
+            self.perfil_tecnico = self.config['perfil_tecnico']
+            logging.info(f"✅ Configuración cargada desde {config_path}")
+        except Exception as e:
+            raise ConfigurationError(f"Error cargando configuración: {e}")
         
-        # Tu perfil técnico actual
-        self.perfil_tecnico = {
-            'qa_manual': ['testing', 'qa', 'manual', 'casos de prueba', 'validaciones', 'evidencias', 'funcional', 'quality assurance'],
-            'qa_automatizacion': ['selenium', 'automatización', 'automation', 'locust', 'pruebas de carga', 'page object', 'cypress', 'unit testing', 'pruebas unitarias'],
-            'backend_python': ['python', 'fastapi', 'flask', 'django', 'rest', 'api', 'postgresql', 'mysql'],
-            'backend_java': ['java', 'spring', 'spring boot', 'maven', 'hibernate', 'jvm'],
-            'backend_dotnet': ['.net', 'dotnet', 'c#', 'entity framework', 'asp.net', 'sql server', 'oracle'],
-            'frontend': ['angular', 'vue', 'react', 'next.js', 'quasar', 'javascript', 'typescript', 'html', 'css', 'frontend'],
-            'herramientas': ['postman', 'git', 'github', 'scrum', 'kanban', 'jira', 'agile', 'ágiles', 'metodologías'],
-            'bases_datos': ['postgresql', 'mysql', 'sql server', 'oracle', 'sql', 'base de datos', 'database', 'bd'],
-            'ci_cd': ['jenkins', 'github actions', 'ci/cd', 'sonarqube', 'docker', 'deploy'],
-            'mensajeria': ['kafka', 'rabbitmq', 'message queue', 'colas', 'mensajería'],
-            'otros': ['microservicios', 'microservices', 'webservices', 'full stack', 'desarrollador', 'developer', 'orm', 'dapper']
-        }
+        # Validar CV base
+        if not self.validar_cv_base():
+            raise FileProcessingError("CV base no válido")
+            
+        os.makedirs(self.carpeta_salida, exist_ok=True)
         
         # Adaptaciones del CV según el tipo de posición
         self.adaptaciones_cv = {
@@ -74,6 +96,103 @@ class GeneradorCVInteligente:
             }
         }
 
+    def cargar_configuracion(self, config_path: str) -> Dict[str, Any]:
+        """Carga la configuración desde archivo JSON"""
+        try:
+            with open(config_path, 'r', encoding='utf-8') as f:
+                return json.load(f)
+        except FileNotFoundError:
+            raise ConfigurationError(f"Archivo de configuración no encontrado: {config_path}")
+        except json.JSONDecodeError as e:
+            raise ConfigurationError(f"Error en formato JSON: {e}")
+
+    def validar_cv_base(self) -> bool:
+        """Valida que el CV base exista y sea válido"""
+        try:
+            if not os.path.exists(self.cv_base_path):
+                raise FileProcessingError(f"CV base no encontrado: {self.cv_base_path}")
+            
+            # Verificar que sea un archivo Word válido
+            try:
+                doc = Document(self.cv_base_path)
+                if len(doc.paragraphs) < 5:
+                    raise FileProcessingError("CV base parece estar vacío o corrupto")
+            except Exception as e:
+                raise FileProcessingError(f"Error leyendo CV base: {e}")
+            
+            logging.info(f"✅ CV base validado: {self.cv_base_path}")
+            return True
+            
+        except FileProcessingError as e:
+            logging.error(f"❌ Error validando CV base: {e}")
+            return False
+
+    def detectar_salario(self, texto_postulacion: str) -> Dict[str, Any]:
+        """Detecta rangos salariales en la postulación"""
+        resultado = {
+            'salario_detectado': False,
+            'moneda': None,
+            'rango_min': None,
+            'rango_max': None,
+            'es_competitivo': None,
+            'alertas': []
+        }
+        
+        texto = texto_postulacion.lower()
+        
+        # Patrones para detectar salarios
+        patrones_usd = [
+            r'usd\s*(\d+(?:\.\d{3})*)',
+            r'dolares?\s*(\d+(?:\.\d{3})*)',
+            r'\$\s*(\d+(?:\.\d{3})*)\s*usd'
+        ]
+        
+        patrones_ars = [
+            r'\$\s*(\d+(?:\.\d{3})*)',
+            r'pesos\s*(\d+(?:\.\d{3})*)',
+            r'ars\s*(\d+(?:\.\d{3})*)'
+        ]
+        
+        # Buscar USD primero
+        for patron in patrones_usd:
+            matches = re.findall(patron, texto)
+            if matches:
+                resultado['salario_detectado'] = True
+                resultado['moneda'] = 'USD'
+                salarios = [int(m.replace('.', '')) for m in matches]
+                resultado['rango_min'] = min(salarios)
+                resultado['rango_max'] = max(salarios) if len(salarios) > 1 else None
+                break
+        
+        # Si no encontró USD, buscar ARS
+        if not resultado['salario_detectado']:
+            for patron in patrones_ars:
+                matches = re.findall(patron, texto)
+                if matches:
+                    resultado['salario_detectado'] = True
+                    resultado['moneda'] = 'ARS'
+                    salarios = [int(m.replace('.', '')) for m in matches]
+                    resultado['rango_min'] = min(salarios)
+                    resultado['rango_max'] = max(salarios) if len(salarios) > 1 else None
+                    break
+        
+        # Evaluar competitividad
+        if resultado['salario_detectado'] and resultado['moneda'] == 'USD':
+            min_esperado = self.config['deteccion_salarios']['salario_minimo_esperado_usd']
+            max_esperado = self.config['deteccion_salarios']['salario_maximo_esperado_usd']
+            
+            if resultado['rango_min'] < min_esperado:
+                resultado['alertas'].append(f"💰 Salario bajo: ${resultado['rango_min']} USD (mínimo esperado: ${min_esperado})")
+                resultado['es_competitivo'] = False
+            elif resultado['rango_min'] > max_esperado:
+                resultado['alertas'].append(f"🎯 Salario alto: ${resultado['rango_min']} USD (máximo esperado: ${max_esperado})")
+                resultado['es_competitivo'] = True
+            else:
+                resultado['es_competitivo'] = True
+                resultado['alertas'].append(f"✅ Salario competitivo: ${resultado['rango_min']} USD")
+        
+        return resultado
+
     def cargar_cv_base(self):
         """Carga el CV base desde archivo Word"""
         try:
@@ -106,9 +225,7 @@ class GeneradorCVInteligente:
             puntos['qa_manual'] += 3
             
         # Primero verificar si hay tecnologías que NO conocemos
-        tecnologias_no_conocidas = ['oracle', 'visual basic', 'vb.net', 
-                                   '.net', 'c#', 'php', 'ruby', 'rust', 'cobol', 'mainframe',
-                                   'sap', 'salesforce', 'sharepoint']
+        tecnologias_no_conocidas = self.config['tecnologias_no_conocidas']
         
         if any(tech in texto for tech in tecnologias_no_conocidas):
             print(f">>> 🚫 Tecnologías detectadas fuera de nuestro perfil: {[tech for tech in tecnologias_no_conocidas if tech in texto]}")
@@ -209,25 +326,13 @@ class GeneradorCVInteligente:
     def validar_estrategia_aplicacion(self, tipo_posicion, nivel):
         """Valida si la posición está dentro de la estrategia de aplicación"""
         
-        # Estrategia definida:
-        # Junior: QA, Python, Java, Frontend, Full Stack
-        # Semi-Senior: QA, Python, Full Stack
-        # Senior: No aplicar
+        estrategia = self.config['estrategia_aplicacion']
         
-        if nivel == 'senior':
-            return False  # No aplicar a posiciones senior
-        
-        if nivel == 'junior':
-            # Junior: Todas nuestras categorías
-            tipos_permitidos = ['qa_manual', 'qa_automatizacion', 'desarrollador_python', 
-                              'desarrollador_java', 'desarrollador_frontend', 'desarrollador_fullstack']
-            return tipo_posicion in tipos_permitidos
-        
-        if nivel == 'semi_senior':
-            # Semi-Senior: QA, Python, Full Stack, Java
-            return tipo_posicion in ['qa_manual', 'qa_automatizacion', 'desarrollador_python', 'desarrollador_fullstack', 'desarrollador_java']
-        
-        return False  # Cualquier otro caso
+        if nivel not in estrategia:
+            return False
+            
+        tipos_permitidos = estrategia[nivel]
+        return tipo_posicion in tipos_permitidos
     
     def tiene_experiencia_frontend(self):
         """Verifica si tenemos experiencia suficiente en frontend para aplicar"""
@@ -427,7 +532,7 @@ class GeneradorCVInteligente:
                 keywords_faltantes.append(kw)
         
         if keywords_faltantes:
-            tech_adicional = f"\n\nTecnologías y herramientas relevantes para el puesto: {', '.join(keywords_faltantes).title()}"
+            tech_adicional = f"\n\nTecnologías y herramientas relevantes que fui adquiriendo: {', '.join(keywords_faltantes).title()}"
             cv_adaptado += tech_adicional
         
         return cv_adaptado, adaptacion['titulo']
@@ -506,11 +611,15 @@ class GeneradorCVInteligente:
     def generar_speech_avanzado(self, empresa, tipo_posicion, nivel, keywords):
         """Genera un speech personalizado según el tipo de posición y nivel"""
         
+        # Definir speech para Java según el nivel
         if tipo_posicion == 'desarrollador_java':
             if nivel == 'junior':
                 speech_java = f"Gracias por la oportunidad en {empresa}. Me interesa esta posición junior porque mi experiencia sólida en Python/FastAPI y metodologías de testing me proporciona una excelente base para transicionar al ecosistema Java. Estoy motivado por aprender y aplicar mis conocimientos de backend en Java."
             else:  # semi_senior
                 speech_java = f"Gracias por la oportunidad en {empresa}. Me motiva esta posición SSR porque mi experiencia en desarrollo backend con Python/FastAPI, combined con mi background en QA, me permite aportar una perspectiva integral al desarrollo Java. Mi experiencia en APIs REST y metodologías ágiles es directamente transferible al ecosistema Java/Spring."
+        else:
+            # Para casos que no sean Java, definir speech_java por defecto
+            speech_java = f"Gracias por la oportunidad en {empresa}. Mi experiencia en desarrollo backend me proporciona una base sólida para trabajar con Java."
         
         speeches_base = {
             'qa_automatizacion': f"Gracias por la oportunidad en {empresa}. Me postulé porque tengo una experiencia única combinando desarrollo full stack y QA. Actualmente en la Municipalidad desarrollo funcionalidades con Python/FastAPI y Next.js, y también implemento automatización de pruebas con Locust y Selenium.",
@@ -563,6 +672,18 @@ FECHA: {datetime.now().strftime("%Y-%m-%d %H:%M:%S")}
         # 2. Extraer keywords
         keywords = self.extraer_keywords_avanzado(texto_postulacion)
         print(f">>> Keywords encontradas: {', '.join(keywords[:5])}{'...' if len(keywords) > 5 else ''}")
+        
+        # 2.5. Detectar salario
+        try:
+            info_salario = self.detectar_salario(texto_postulacion)
+            if info_salario['salario_detectado']:
+                print(f">>> Salario detectado: {info_salario['rango_min']} {info_salario['moneda']}")
+                for alerta in info_salario['alertas']:
+                    print(f">>> {alerta}")
+            else:
+                print(">>> No se detectó información salarial")
+        except Exception as e:
+            logging.warning(f"Error detectando salario: {e}")
         
         # 3. Cargar y adaptar CV
         cv_base = self.cargar_cv_base()
@@ -668,7 +789,16 @@ FECHA: {datetime.now().strftime("%Y-%m-%d %H:%M:%S")}
 
 # FUNCIÓN PRINCIPAL
 def main():
-    generador = GeneradorCVInteligente(umbral_fit=70)  # Configurable
+    try:
+        generador = GeneradorCVInteligente()  # Usa config.json por defecto
+        logging.info("🚀 Generador de CV iniciado correctamente")
+    except (ConfigurationError, FileProcessingError) as e:
+        print(f"❌ Error de inicialización: {e}")
+        return
+    except Exception as e:
+        logging.error(f"Error inesperado: {e}")
+        print(f"❌ Error inesperado: {e}")
+        return
     
     print(">>> Generador de CV Inteligente v2.0")
     print("🎯 Estrategia de aplicación:")
@@ -687,14 +817,18 @@ def main():
         texto_postulacion = input("\n>>> Pega la descripción de la postulación:\n").strip()
         
         if empresa and texto_postulacion:
-            resultado = generador.procesar_postulacion(texto_postulacion, empresa)
-            
-            if resultado:
-                print(f"\n>>> ¡Proceso completado para {empresa}!")
-                print(f">>> Posición: {resultado['titulo']}")
-                print(f">>> CV guardado en: {resultado['cv_path']}")
-            else:
-                print("\n>>> Error procesando la postulación")
+            try:
+                resultado = generador.procesar_postulacion(texto_postulacion, empresa)
+                
+                if resultado:
+                    print(f"\n>>> ¡Proceso completado para {empresa}!")
+                    print(f">>> Posición: {resultado['titulo']}")
+                    print(f">>> CV guardado en: {resultado['cv_path']}")
+                else:
+                    print("\n>>> Postulación no procesada (fuera de estrategia o fit insuficiente)")
+            except Exception as e:
+                logging.error(f"Error procesando postulación de {empresa}: {e}")
+                print(f"\n>>> ❌ Error procesando la postulación: {e}")
         else:
             print("\n>>> Empresa y postulación son requeridos")
 
