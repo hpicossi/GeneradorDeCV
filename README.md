@@ -71,7 +71,7 @@ El **Generador de CV Inteligente** es una herramienta que:
 ### **Python 3.7+**
 ### **Librerías necesarias:**
 ```bash
-pip install python-docx reportlab python-dotenv
+pip install python-docx reportlab python-dotenv requests beautifulsoup4
 ```
 
 ### **Archivos requeridos:**
@@ -88,7 +88,7 @@ cd GeneradorDeCV
 
 ### 2. **Instalar dependencias**
 ```bash
-pip install python-docx reportlab python-dotenv
+pip install python-docx reportlab python-dotenv requests beautifulsoup4
 ```
 
 ### 3. **Configurar variables de entorno (IMPORTANTE)**
@@ -305,6 +305,43 @@ python generador_cv_avanzado.py --email
 
 # Modo batch con emails automáticos
 python generador_cv_avanzado.py --batch postulaciones.csv --email
+```
+
+## 🕷️ Web Scraping Automático
+
+### **Buscar trabajos automáticamente:**
+```bash
+# Buscar trabajos QA en Buenos Aires
+python generador_cv_avanzado.py --scrape qa --save-jobs
+
+# Buscar Python en Córdoba
+python generador_cv_avanzado.py --scrape python --location "Córdoba"
+
+# Buscar Java y procesar automáticamente
+python generador_cv_avanzado.py --scrape java --save-jobs
+```
+
+### **Portales soportados:**
+- 🇦🇷 **Computrabajo** - Portal líder en Latinoamérica
+- 🇦🇷 **ZoneJobs** - Popular en Argentina
+- 🌎 **Indeed** - Portal global
+
+### **Áreas de búsqueda disponibles:**
+- `qa` - QA Engineer, Tester, Quality Assurance
+- `python` - Python Developer, Backend Python, Django, FastAPI
+- `java` - Java Developer, Spring Boot, Java Programmer
+- `frontend` - Frontend Developer, JavaScript, React, Vue
+- `fullstack` - Full Stack Developer, Desarrollador Full Stack
+
+### **Flujo completo automatizado:**
+```bash
+# 1. Buscar trabajos automáticamente
+python generador_cv_avanzado.py --scrape qa --save-jobs
+
+# 2. El sistema encuentra trabajos y pregunta si procesar
+# 3. Si aceptas, procesa todos automáticamente
+# 4. Genera CVs personalizados para cada uno
+# 5. Envía emails si está configurado
 ```
 
 ## 📈 Métricas y Estadísticas

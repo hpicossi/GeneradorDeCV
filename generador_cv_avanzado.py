@@ -16,7 +16,11 @@ from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 from email.mime.base import MIMEBase
 from email import encoders
-from typing import Optional, Dict, Any, List
+import requests
+from bs4 import BeautifulSoup
+import time
+from urllib.parse import urljoin, urlparse
+from typing import Optional, Dict, Any, List, Tuple
 
 # Intentar cargar python-dotenv (opcional)
 try:
@@ -651,6 +655,233 @@ class GeneradorCVInteligente:
                 tecnologias_destacadas.append(tech_name)
         
         return tecnologias_destacadas[:3]  # Máximo 3 tecnologías principales
+
+    def scrape_portal(self, portal_name: str, query: str, location: str = "Buenos Aires") -> List[Dict[str, str]]:
+        """Scraping de un portal específico de trabajo"""
+        if not self.config['scraping_config']['enabled']:
+            print(f"🕷️ Web scraping deshabilitado en configuración")
+            return []
+            
+        portal_config = self.config['scraping_config']['portales'].get(portal_name)
+        if not portal_config or not portal_config['enabled']:
+            print(f"⚠️ Portal {portal_name} no está habilitado")
+            return []
+        
+        jobs = []
+        headers = {
+            'User-Agent': self.config['scraping_config']['user_agent'],
+            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+            'Accept-Language': 'es-ES,es;q=0.5',
+            'Accept-Encoding': 'gzip, deflate',
+            'Connection': 'keep-alive',
+        }
+        
+        try:
+            # Construir URL de búsqueda
+            search_url = portal_config['search_url'].format(
+                query=requests.utils.quote(query),
+                location=requests.utils.quote(location)
+            )
+            
+            print(f"🕷️ Scrapeando {portal_name}: {query} en {location}")
+            logging.info(f"Scraping {portal_name}: {search_url}")
+            
+            # Realizar request
+            response = requests.get(search_url, headers=headers, timeout=10)
+            response.raise_for_status()
+            
+            # Parsear HTML
+            soup = BeautifulSoup(response.content, 'html.parser')
+            selectors = portal_config['job_selectors']
+            
+            # Buscar contenedores de trabajos
+            job_containers = soup.select(selectors['job_container'])
+            max_results = self.config['scraping_config']['max_results_per_portal']
+            
+            for i, container in enumerate(job_containers[:max_results]):
+                try:
+                    # Extraer información del trabajo
+                    title_elem = container.select_one(selectors['title'])
+                    company_elem = container.select_one(selectors['company']) 
+                    desc_elem = container.select_one(selectors['description'])
+                    salary_elem = container.select_one(selectors.get('salary', ''))
+                    location_elem = container.select_one(selectors.get('location', ''))
+                    
+                    # Limpiar y extraer texto
+                    title = title_elem.get_text(strip=True) if title_elem else "Sin título"
+                    company = company_elem.get_text(strip=True) if company_elem else "Empresa confidencial"
+                    description = desc_elem.get_text(strip=True) if desc_elem else ""
+                    salary = salary_elem.get_text(strip=True) if salary_elem else ""
+                    job_location = location_elem.get_text(strip=True) if location_elem else location
+                    
+                    # Limpiar datos
+                    title = self.limpiar_texto(title)
+                    company = self.limpiar_texto(company)
+                    description = self.limpiar_texto(description)[:500]  # Limitar descripción
+                    
+                    # Filtrar trabajos spam
+                    if self.es_trabajo_spam(title, company, description):
+                        continue
+                    
+                    job_data = {
+                        'portal': portal_name,
+                        'title': title,
+                        'company': company,
+                        'description': description,
+                        'salary': salary,
+                        'location': job_location,
+                        'url': search_url,
+                        'scraped_at': datetime.now().isoformat()
+                    }
+                    
+                    jobs.append(job_data)
+                    
+                except Exception as e:
+                    logging.warning(f"Error procesando trabajo {i} de {portal_name}: {e}")
+                    continue
+            
+            print(f"✅ {portal_name}: {len(jobs)} trabajos encontrados")
+            
+            # Delay entre requests para ser respetuosos
+            delay = self.config['scraping_config']['delay_between_requests']
+            if delay > 0:
+                time.sleep(delay)
+                
+        except requests.exceptions.RequestException as e:
+            print(f"❌ Error de red scrapeando {portal_name}: {e}")
+            logging.error(f"Error de red en {portal_name}: {e}")
+        except Exception as e:
+            print(f"❌ Error inesperado scrapeando {portal_name}: {e}")
+            logging.error(f"Error inesperado en {portal_name}: {e}")
+        
+        return jobs
+
+    def limpiar_texto(self, texto: str) -> str:
+        """Limpia texto extraído del scraping"""
+        if not texto:
+            return ""
+        
+        # Limpiar espacios y caracteres especiales
+        texto = ' '.join(texto.split())
+        texto = texto.replace('\n', ' ').replace('\r', '')
+        texto = texto.replace('\t', ' ').strip()
+        
+        return texto[:200]  # Limitar longitud
+
+    def es_trabajo_spam(self, title: str, company: str, description: str) -> bool:
+        """Detecta trabajos spam o de baja calidad"""
+        texto_completo = f"{title} {company} {description}".lower()
+        
+        # Palabras spam configurables
+        palabras_spam = self.config['scraping_config']['filtros']['palabras_spam']
+        
+        for spam_word in palabras_spam:
+            if spam_word.lower() in texto_completo:
+                return True
+        
+        # Empresas a excluir
+        empresas_excluir = self.config['scraping_config']['filtros']['excluir_empresas']
+        for empresa_spam in empresas_excluir:
+            if empresa_spam.lower() in company.lower():
+                return True
+        
+        # Filtros adicionales básicos
+        if len(title) < 5 or len(description) < 20:
+            return True
+            
+        return False
+
+    def buscar_trabajos_automatico(self, area_busqueda: str = "qa", ubicacion: str = "Buenos Aires") -> List[Dict[str, str]]:
+        """Búsqueda automática en múltiples portales"""
+        if not self.config['scraping_config']['enabled']:
+            print("🕷️ Web scraping está deshabilitado")
+            return []
+        
+        todos_trabajos = []
+        keywords_area = self.config['scraping_config']['keywords_busqueda'].get(area_busqueda, [area_busqueda])
+        
+        print(f"\n🔍 BÚSQUEDA AUTOMÁTICA DE TRABAJOS")
+        print(f"📍 Área: {area_busqueda}")
+        print(f"🌎 Ubicación: {ubicacion}")
+        print(f"🔑 Keywords: {', '.join(keywords_area)}")
+        print("=" * 50)
+        
+        # Iterar por cada portal habilitado
+        for portal_name, portal_config in self.config['scraping_config']['portales'].items():
+            if not portal_config['enabled']:
+                continue
+                
+            print(f"\n🕷️ Scrapeando {portal_name.upper()}...")
+            
+            # Buscar con cada keyword del área
+            for keyword in keywords_area:
+                try:
+                    jobs = self.scrape_portal(portal_name, keyword, ubicacion)
+                    todos_trabajos.extend(jobs)
+                    
+                    if jobs:
+                        print(f"   └── '{keyword}': {len(jobs)} trabajos")
+                    
+                except Exception as e:
+                    print(f"   └── ❌ Error con '{keyword}': {e}")
+                    logging.error(f"Error buscando {keyword} en {portal_name}: {e}")
+        
+        # Eliminar duplicados basados en título + empresa
+        trabajos_unicos = []
+        seen = set()
+        
+        for trabajo in todos_trabajos:
+            key = f"{trabajo['title']}_{trabajo['company']}".lower()
+            if key not in seen:
+                seen.add(key)
+                trabajos_unicos.append(trabajo)
+        
+        print(f"\n📊 RESUMEN DE BÚSQUEDA:")
+        print(f"   • Total encontrados: {len(todos_trabajos)}")
+        print(f"   • Únicos (sin duplicados): {len(trabajos_unicos)}")
+        print(f"   • Portales consultados: {len([p for p in self.config['scraping_config']['portales'] if self.config['scraping_config']['portales'][p]['enabled']])}")
+        
+        return trabajos_unicos
+
+    def guardar_trabajos_csv(self, trabajos: List[Dict[str, str]], filename: str = None) -> str:
+        """Guarda trabajos encontrados en CSV para procesamiento batch"""
+        if not trabajos:
+            print("❌ No hay trabajos para guardar")
+            return ""
+        
+        if not filename:
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            filename = f"trabajos_encontrados_{timestamp}.csv"
+        
+        filepath = os.path.join(self.carpeta_salida, filename)
+        
+        try:
+            with open(filepath, 'w', newline='', encoding='utf-8') as csvfile:
+                fieldnames = ['empresa', 'descripcion', 'portal', 'title', 'salary', 'location', 'url', 'scraped_at']
+                writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
+                
+                writer.writeheader()
+                for trabajo in trabajos:
+                    # Adaptar formato para el procesador batch existente
+                    writer.writerow({
+                        'empresa': trabajo['company'],
+                        'descripcion': f"{trabajo['title']} - {trabajo['description']}",
+                        'portal': trabajo['portal'],
+                        'title': trabajo['title'],
+                        'salary': trabajo['salary'],
+                        'location': trabajo['location'],
+                        'url': trabajo['url'],
+                        'scraped_at': trabajo['scraped_at']
+                    })
+            
+            print(f"💾 Trabajos guardados en: {filepath}")
+            logging.info(f"Trabajos guardados: {filepath}")
+            return filepath
+            
+        except Exception as e:
+            print(f"❌ Error guardando CSV: {e}")
+            logging.error(f"Error guardando trabajos CSV: {e}")
+            return ""
 
     def detectar_tipo_empresa(self, texto_postulacion: str, empresa: str) -> str:
         """Detecta el tipo de empresa basado en la postulación y nombre"""
@@ -1308,6 +1539,8 @@ Ejemplos de uso:
   python generador_cv_avanzado.py                          # Modo interactivo
   python generador_cv_avanzado.py --batch postulaciones.csv # Modo batch
   python generador_cv_avanzado.py --stats                   # Ver estadísticas
+  python generador_cv_avanzado.py --scrape qa --save-jobs   # Buscar trabajos QA
+  python generador_cv_avanzado.py --scrape python --location "Córdoba" # Python en Córdoba
   python generador_cv_avanzado.py --empresa "TechCorp" --postulacion "Descripción..." --email
   python generador_cv_avanzado.py --batch postulaciones.csv --email # Batch con emails
   python generador_cv_avanzado.py --umbral 80 --email       # Personalizar umbral y email
@@ -1330,6 +1563,12 @@ Ejemplos de uso:
                         help='Habilitar envío automático de emails')
     parser.add_argument('--email-to',
                         help='Email destino para modo directo')
+    parser.add_argument('--scrape', '-w',
+                        help='Buscar trabajos automáticamente (ej: qa, python, java)')
+    parser.add_argument('--location', '-l', default='Buenos Aires',
+                        help='Ubicación para búsqueda (default: Buenos Aires)')
+    parser.add_argument('--save-jobs', action='store_true',
+                        help='Guardar trabajos encontrados en CSV')
     
     return parser.parse_args()
 
@@ -1363,6 +1602,52 @@ def main():
     if args.stats:
         # Modo estadísticas
         generador.mostrar_dashboard()
+        return
+    
+    if args.scrape:
+        # Modo web scraping
+        print(">>> Generador de CV Inteligente v3.0 - MODO WEB SCRAPING")
+        print(f"🔍 Buscando: {args.scrape}")
+        print(f"📍 Ubicación: {args.location}")
+        print(f"🕷️ Scraping habilitado: {'SÍ' if generador.config['scraping_config']['enabled'] else 'NO'}\n")
+        
+        try:
+            trabajos = generador.buscar_trabajos_automatico(args.scrape, args.location)
+            
+            if trabajos:
+                # Guardar en CSV si se solicita
+                if args.save_jobs:
+                    csv_path = generador.guardar_trabajos_csv(trabajos)
+                    if csv_path:
+                        # Preguntar si procesar automáticamente
+                        respuesta = input(f"\n¿Procesar estos {len(trabajos)} trabajos automáticamente? (y/N): ").strip().lower()
+                        if respuesta in ['y', 'yes', 'sí', 's']:
+                            print(f"\n🚀 Procesando trabajos con modo batch...")
+                            resultados = generador.procesar_batch_csv(csv_path)
+                            generador.mostrar_resumen_batch(resultados)
+                        else:
+                            print(f"💾 Trabajos guardados en: {csv_path}")
+                            print("💡 Para procesar después: python generador_cv_avanzado.py --batch " + csv_path)
+                else:
+                    # Solo mostrar resumen
+                    print(f"\n📋 TRABAJOS ENCONTRADOS ({len(trabajos)}):")
+                    for i, trabajo in enumerate(trabajos[:10], 1):  # Mostrar primeros 10
+                        print(f"   {i}. {trabajo['company']} - {trabajo['title']}")
+                        if trabajo['salary']:
+                            print(f"      💰 {trabajo['salary']}")
+                        print(f"      📍 {trabajo['location']} | 🌐 {trabajo['portal']}")
+                        print()
+                    
+                    if len(trabajos) > 10:
+                        print(f"   ... y {len(trabajos) - 10} trabajos más")
+                    
+                    print(f"\n💡 Para guardar y procesar: --scrape {args.scrape} --save-jobs")
+            else:
+                print("❌ No se encontraron trabajos con los criterios especificados")
+                
+        except Exception as e:
+            print(f"❌ Error en web scraping: {e}")
+            logging.error(f"Error en modo scraping: {e}")
         return
     
     if args.batch:
@@ -1409,6 +1694,7 @@ def main():
     print("\n🔧 Comandos CLI disponibles:")
     print("   • --batch archivo.csv  - Procesar múltiples postulaciones")
     print("   • --stats              - Ver estadísticas") 
+    print("   • --scrape qa --save-jobs - Buscar trabajos automáticamente")
     print("   • --email              - Habilitar envío automático de emails")
     print("   • --help               - Ver ayuda completa")
     

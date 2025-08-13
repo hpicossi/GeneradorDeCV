@@ -107,5 +107,65 @@
       "follow_up_1": "Estimados,\n\nHace una semana envié mi CV para la posición de {posicion}. Quería consultarles sobre el estado del proceso de selección.\n\nSigo muy interesado en la oportunidad y quedo a disposición para cualquier información adicional.\n\nSaludos,\n{nombre_completo}",
       "follow_up_2": "Estimados,\n\nQuería hacer un seguimiento sobre mi aplicación para {posicion} en {empresa}. \n\n¿Podrían darme una actualización sobre el proceso?\n\nGracias por su tiempo.\n\nSaludos,\n{nombre_completo}"
     }
+  },
+  "scraping_config": {
+    "enabled": true,
+    "delay_between_requests": 6,
+    "max_results_per_portal": 20,
+    "user_agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36",
+    "portales": {
+      "computrabajo": {
+        "enabled": true,
+        "base_url": "https://www.computrabajo.com.ar",
+        "search_url": "https://www.computrabajo.com.ar/empleos-busqueda?q={query}&l={location}",
+        "job_selectors": {
+          "job_container": ".box_offer",
+          "title": ".js-o-link",
+          "company": ".fc_base",
+          "description": ".fs13",
+          "salary": ".tag_s",
+          "location": ".color_base"
+        }
+      },
+      "zonajobs": {
+        "enabled": true,
+        "base_url": "https://www.zonajobs.com.ar",
+        "search_url": "https://www.zonajobs.com.ar/empleos/{query}.html",
+        "job_selectors": {
+          "job_container": ".aviso-item",
+          "title": ".aviso-title",
+          "company": ".aviso-empresa",
+          "description": ".aviso-descripcion",
+          "salary": ".aviso-salario",
+          "location": ".aviso-ubicacion"
+        }
+      },
+      "indeed": {
+        "enabled": true,
+        "base_url": "https://ar.indeed.com",
+        "search_url": "https://ar.indeed.com/empleos?q={query}&l={location}",
+        "job_selectors": {
+          "job_container": ".job_seen_beacon",
+          "title": "[data-jk] h2 a span",
+          "company": ".companyName",
+          "description": ".job-snippet",
+          "salary": ".salary-snippet",
+          "location": ".companyLocation"
+        }
+      }
+    },
+    "keywords_busqueda": {
+      "qa": ["qa engineer", "tester", "quality assurance", "automation", "selenium"],
+      "python": ["python developer", "backend python", "django", "fastapi", "flask"],
+      "java": ["java developer", "spring boot", "java programmer", "spring", "hibernate"],
+      "backend": ["backend developer", "api developer", "microservicios", "rest api", "node.js"],
+      "fullstack": ["full stack developer", "fullstack", "desarrollador full stack", "full-stack"]
+    },
+    "filtros": {
+      "ubicaciones": ["Buenos Aires", "CABA", "Cordoba", "Rosario", "Argentina"],
+      "niveles": ["junior", "ssr", "semi senior", "trainee"],
+      "excluir_empresas": ["spam-company", "fake-jobs"],
+      "palabras_spam": ["trabajo desde casa fácil", "gana dinero rápido", "sin experiencia necesaria"]
+    }
   }
 }
