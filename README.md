@@ -1,6 +1,31 @@
 # 🚀 Generador de CV Inteligente
 
+[![Python](https://img.shields.io/badge/python-v3.7+-blue.svg)](https://python.org)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](http://makeapullrequest.com)
+
 Un sistema automatizado e inteligente para generar CVs personalizados basados en análisis de postulaciones laborales. Analiza automáticamente las descripciones de trabajo, detecta el tipo de posición y nivel de seniority, y adapta tu CV para maximizar las posibilidades de éxito.
+
+> 🎯 **Automatiza tu búsqueda laboral con IA y maximiza tus oportunidades**
+
+## 📑 Tabla de Contenidos
+
+- [🚀 Generador de CV Inteligente](#-generador-de-cv-inteligente)
+  - [📋 ¿Qué hace este script?](#-qué-hace-este-script)
+  - [🌟 Características Principales](#-características-principales)
+  - [🛠️ Requisitos del Sistema](#️-requisitos-del-sistema)
+  - [📦 Instalación](#-instalación)
+  - [⚙️ Configuración](#️-configuración)
+  - [🚀 Uso](#-uso)
+  - [📁 Estructura de Archivos](#-estructura-de-archivos)
+  - [🎯 Estrategia de Aplicación](#-estrategia-de-aplicación)
+  - [📧 Configuración de Email](#-configuración-de-email)
+  - [🎨 Personalización](#-personalización)
+  - [📈 Métricas y Estadísticas](#-métricas-y-estadísticas)
+  - [🛠️ Stack Tecnológico](#️-stack-tecnológico)
+  - [🔧 Troubleshooting](#-troubleshooting)
+  - [🤝 Contribuciones](#-contribuciones)
+  - [📜 Licencia](#-licencia)
 
 ## 📋 ¿Qué hace este script?
 
@@ -290,23 +315,125 @@ Cada postulación procesada genera:
 - 💰 **Rangos salariales detectados**
 - 🎯 **Fit promedio** por empresa
 
+## 🛠️ Stack Tecnológico
+
+- **Python 3.7+** - Lenguaje principal
+- **python-docx** - Manipulación de documentos Word
+- **ReportLab** - Generación de PDFs
+- **SQLite** - Base de datos local
+- **SMTP** - Envío de emails
+- **python-dotenv** - Manejo de variables de entorno
+
 ## 🤝 Contribuciones
 
-¿Tienes ideas para mejorar el sistema? ¡Las contribuciones son bienvenidas!
+¡Las contribuciones son bienvenidas! Si quieres mejorar el proyecto:
 
-### **Próximas mejoras:**
-- Dashboard web con estadísticas
-- Integración con APIs de trabajo
-- Sistema de follow-up automático
-- Análisis de competencia
+### **Cómo contribuir:**
 
-## 📞 Soporte
+1. **Fork** el repositorio
+2. **Crea** una rama para tu feature: `git checkout -b feature/nueva-funcionalidad`
+3. **Commit** tus cambios: `git commit -m 'Add: nueva funcionalidad'`
+4. **Push** a la rama: `git push origin feature/nueva-funcionalidad`
+5. **Abre** un Pull Request
 
-Si tienes problemas:
-1. Revisa el archivo `cv_generator.log`
-2. Verifica que todos los archivos estén presentes
-3. Confirma que las dependencias estén instaladas
+### **Tipos de contribuciones bienvenidas:**
+
+- 🐛 **Bug fixes**
+- ✨ **Nuevas funcionalidades**
+- 📚 **Documentación**
+- 🎨 **Mejoras de UI/UX**
+- 🧪 **Tests automatizados**
+- 🌐 **Traducciones**
+
+### **Próximas mejoras en roadmap:**
+
+- [ ] Dashboard web con Flask/FastAPI
+- [ ] Integración con APIs de portales de trabajo
+- [ ] Machine Learning para optimización de fit
+- [ ] Sistema de follow-up automático
+- [ ] Análisis de competencia avanzado
+- [ ] Plantillas de CV múltiples
+- [ ] Notificaciones push/Slack
+- [ ] Tests automatizados
+
+## 📊 Estadísticas del Proyecto
+
+- 📈 **+3000 líneas de código**
+- 🚀 **12+ funcionalidades principales**
+- 📧 **Integración de email automática**
+- 📊 **Dashboard de estadísticas completo**
+- 🎯 **Sistema de fit inteligente**
+- 💾 **Base de datos SQLite integrada**
+
+## 🐛 Reporte de Issues
+
+¿Encontraste un bug? ¡Ayúdanos a mejorarlo!
+
+1. **Verifica** que no esté ya reportado en [Issues](../../issues)
+2. **Crea** un nuevo issue con:
+   - Descripción clara del problema
+   - Pasos para reproducir
+   - Mensaje de error completo
+   - Tu configuración (OS, Python version)
+
+## 📞 Soporte y Comunidad
+
+### **Si tienes problemas:**
+
+1. 📋 Revisa el archivo `cv_generator.log`
+2. 🔍 Consulta la sección [Troubleshooting](#-troubleshooting)
+3. 📖 Lee la documentación completa
+4. 🐛 [Reporta issues](../../issues) en GitHub
+5. 💬 Inicia una [Discusión](../../discussions) para preguntas generales
+
+### **Canales de soporte:**
+
+- 🐛 **Bugs**: [GitHub Issues](../../issues)
+- 💡 **Feature Requests**: [GitHub Discussions](../../discussions)
+- 📚 **Documentación**: Este README
+- 📧 **Email**: Disponible en el perfil de GitHub
+
+## 📜 Licencia
+
+Este proyecto está bajo la Licencia MIT - ver el archivo [LICENSE](LICENSE) para más detalles.
+
+```
+MIT License
+
+Copyright (c) 2025 GeneradorDeCV
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software...
+```
+
+## ⭐ ¿Te gustó el proyecto?
+
+¡Dale una **estrella** ⭐ al repositorio si te fue útil!
+
+### **Ayuda a hacer crecer el proyecto:**
+
+- ⭐ **Star** el repositorio
+- 🍴 **Fork** para contribuir
+- 📣 **Comparte** con otros desarrolladores
+- 💬 **Feedback** en discusiones
+- 🐛 **Reporta** bugs para mejorarlo
+
+## 🙏 Agradecimientos
+
+- 💡 Inspirado por la necesidad de automatizar aplicaciones laborales
+- 🤝 Agradecimiento a la comunidad open source
+- 📚 Construido con excelentes librerías de Python
+- 🚀 Diseñado para desarrolladores que buscan empleo
 
 ---
 
+<div align="center">
+
 **¡Automatiza tu búsqueda laboral y maximiza tus oportunidades! 🚀**
+
+[⬆ Volver al inicio](#-generador-de-cv-inteligente)
+
+</div>
