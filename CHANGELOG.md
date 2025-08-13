@@ -5,7 +5,32 @@ Todos los cambios importantes del proyecto están documentados en este archivo.
 El formato está basado en [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 y este proyecto sigue [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [3.0.0] - 2025-01-13
+## [3.1.0] - 2025-01-13
+
+### ✨ Agregado
+- **🕷️ Web Scraping Automático** - Búsqueda en múltiples portales de trabajo
+- **🌐 Soporte para 3 portales**: Computrabajo, ZoneJobs, Indeed
+- **🔍 5 áreas de búsqueda**: QA, Python, Java, Backend, Full Stack
+- **📍 Búsqueda por ubicación** (Buenos Aires, Córdoba, Rosario, etc.)
+- **🧹 Sistema anti-spam** para filtrar trabajos fake
+- **💾 Exportación a CSV** de trabajos encontrados
+- **🤖 Procesamiento automático** de trabajos scrapeados
+- **⏱️ Delays configurables** para scraping ético
+- **🎯 Integración total** con modo batch y email
+
+### 🔄 Cambiado
+- **CLI expandido** con comandos de scraping (`--scrape`, `--location`, `--save-jobs`)
+- **Dependencias nuevas**: requests, beautifulsoup4
+- **Keywords de búsqueda** expandidas por área
+- **Documentación completa** actualizada con ejemplos de scraping
+
+### 🔒 Seguridad
+- **Rate limiting** con delays entre requests
+- **User-Agent realista** para evitar detección
+- **Filtros anti-spam** configurables
+- **Límites por portal** para uso responsable
+
+## [3.0.0] - 2025-01-08
 
 ### ✨ Agregado
 - **Sistema de variables de entorno (.env)** para configuración segura

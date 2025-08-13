@@ -38,13 +38,21 @@ El **Generador de CV Inteligente** es una herramienta que:
 - 📝 **Genera speech personalizado** para entrevistas
 - 📈 **Filtra oportunidades** según tu estrategia de aplicación
 - 🗂️ **Organiza todo** en archivos PDF y resúmenes JSON
+- 🕷️ **Busca trabajos automáticamente** en múltiples portales web
+- 🌐 **Scrapea Computrabajo, ZoneJobs, Indeed** con filtros inteligentes
 
 ## 🌟 Características Principales
 
 ### ✅ **Detección Inteligente**
-- Identifica automáticamente QA, Python, Java, Frontend, Full Stack
+- Identifica automáticamente QA, Python, Java, Backend, Full Stack
 - Detecta nivel de seniority (Junior, Semi-Senior, Senior)
 - Rechaza automáticamente posiciones fuera de tu perfil
+
+### ✅ **Web Scraping Automático**
+- Busca trabajos en Computrabajo, ZoneJobs, Indeed automáticamente
+- 5 áreas predefinidas: QA, Python, Java, Backend, Full Stack
+- Filtros anti-spam y validación de calidad
+- Delays configurables para scraping ético
 
 ### ✅ **Análisis de Fit Avanzado**
 - Calcula porcentaje de compatibilidad con la postulación
@@ -200,7 +208,7 @@ El sistema sigue una estrategia definida:
 
 ### **Junior** ✅
 - QA Manual y Automatización
-- Python, Java, Frontend, Full Stack
+- Python, Java, Backend, Full Stack
 
 ### **Semi-Senior** ✅
 - QA Manual y Automatización  
@@ -327,11 +335,11 @@ python generador_cv_avanzado.py --scrape java --save-jobs
 - 🌎 **Indeed** - Portal global
 
 ### **Áreas de búsqueda disponibles:**
-- `qa` - QA Engineer, Tester, Quality Assurance
-- `python` - Python Developer, Backend Python, Django, FastAPI
-- `java` - Java Developer, Spring Boot, Java Programmer
-- `frontend` - Frontend Developer, JavaScript, React, Vue
-- `fullstack` - Full Stack Developer, Desarrollador Full Stack
+- `qa` - QA Engineer, Tester, Quality Assurance, Automation, Selenium
+- `python` - Python Developer, Backend Python, Django, FastAPI, Flask
+- `java` - Java Developer, Spring Boot, Java Programmer, Spring, Hibernate
+- `backend` - Backend Developer, API Developer, Microservicios, REST API, Node.js
+- `fullstack` - Full Stack Developer, Fullstack, Desarrollador Full Stack, Full-Stack
 
 ### **Flujo completo automatizado:**
 ```bash
@@ -360,6 +368,9 @@ Cada postulación procesada genera:
 - **SQLite** - Base de datos local
 - **SMTP** - Envío de emails
 - **python-dotenv** - Manejo de variables de entorno
+- **requests** - HTTP client para web scraping
+- **BeautifulSoup4** - Parser HTML para extraer datos
+- **argparse** - Interfaz CLI avanzada
 
 ## 🤝 Contribuciones
 
@@ -384,14 +395,16 @@ Cada postulación procesada genera:
 
 ### **Próximas mejoras en roadmap:**
 
+- [x] **Web scraping automático** ✅ COMPLETADO v3.1.0
 - [ ] Dashboard web con Flask/FastAPI
-- [ ] Integración con APIs de portales de trabajo
 - [ ] Machine Learning para optimización de fit
 - [ ] Sistema de follow-up automático
 - [ ] Análisis de competencia avanzado
 - [ ] Plantillas de CV múltiples
 - [ ] Notificaciones push/Slack
 - [ ] Tests automatizados
+- [ ] Integración con LinkedIn API
+- [ ] Scraping de más portales (Bumeran, Empleos Clarin)
 
 ## 📊 Estadísticas del Proyecto
 

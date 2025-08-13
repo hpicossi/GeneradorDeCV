@@ -127,6 +127,124 @@ python generador_cv_avanzado.py --empresa "TechCorp" --postulacion "QA SSR..." -
 python generador_cv_avanzado.py --batch postulaciones.csv --email
 ```
 
+## 🕷️ Ejemplos de Web Scraping
+
+### **Búsqueda Básica por Área:**
+
+```bash
+# Buscar trabajos QA en Buenos Aires (default)
+python generador_cv_avanzado.py --scrape qa
+
+# Buscar Python en Córdoba
+python generador_cv_avanzado.py --scrape python --location "Córdoba"
+
+# Buscar Java en Rosario
+python generador_cv_avanzado.py --scrape java --location "Rosario"
+
+# Buscar Backend en Buenos Aires
+python generador_cv_avanzado.py --scrape backend
+
+# Buscar Full Stack en cualquier ubicación
+python generador_cv_avanzado.py --scrape fullstack --location "Argentina"
+```
+
+### **Output Típico del Scraping:**
+
+```bash
+python generador_cv_avanzado.py --scrape qa --save-jobs
+```
+
+**Resultado:**
+```
+>>> Generador de CV Inteligente v3.0 - MODO WEB SCRAPING
+🔍 Buscando: qa
+📍 Ubicación: Buenos Aires
+🕷️ Scraping habilitado: SÍ
+
+🔍 BÚSQUEDA AUTOMÁTICA DE TRABAJOS
+📍 Área: qa
+🌎 Ubicación: Buenos Aires
+🔑 Keywords: qa engineer, tester, quality assurance, automation, selenium
+==================================================
+
+🕷️ Scrapeando COMPUTRABAJO...
+🕷️ Scrapeando computrabajo: qa engineer en Buenos Aires
+✅ computrabajo: 8 trabajos encontrados
+   └── 'qa engineer': 8 trabajos
+   [delay 2 segundos]
+🕷️ Scrapeando computrabajo: tester en Buenos Aires  
+✅ computrabajo: 5 trabajos encontrados
+   └── 'tester': 5 trabajos
+   [delay 2 segundos]
+🕷️ Scrapeando computrabajo: automation en Buenos Aires
+✅ computrabajo: 7 trabajos encontrados
+   └── 'automation': 7 trabajos
+
+🕷️ Scrapeando ZONAJOBS...
+   └── 'qa engineer': 4 trabajos
+   └── 'tester': 2 trabajos
+
+🕷️ Scrapeando INDEED...
+   └── 'qa engineer': 6 trabajos
+   └── 'automation': 3 trabajos
+
+📊 RESUMEN DE BÚSQUEDA:
+   • Total encontrados: 35
+   • Únicos (sin duplicados): 23
+   • Portales consultados: 3
+
+💾 Trabajos guardados en: cv_generados/trabajos_encontrados_20250113_1500.csv
+
+¿Procesar estos 23 trabajos automáticamente? (y/N): y
+
+🚀 Procesando trabajos con modo batch...
+==================================================
+📝 Procesando 1: TechCorp Argentina
+>>> Analizando postulación de TechCorp Argentina...
+>>> Tipo detectado: qa_automatizacion (semi_senior)
+✅ TechCorp Argentina: CV generado exitosamente
+
+📝 Procesando 2: StartupTech
+>>> Analizando postulación de StartupTech...
+❌ StartupTech: Rechazada (fit insuficiente)
+
+[... procesando los 23 trabajos ...]
+
+📊 RESUMEN DE PROCESAMIENTO BATCH
+============================================================
+📈 ESTADÍSTICAS:
+   • Total procesadas: 23
+   • ✅ Exitosas: 15
+   • ❌ Rechazadas: 8
+   • 💥 Errores: 0
+   • 📊 Tasa de éxito: 65.2%
+```
+
+### **Flujo Completo Automatizado:**
+
+```bash
+# Comando que automatiza TODO el proceso de búsqueda laboral
+python generador_cv_avanzado.py --scrape fullstack --save-jobs --email --umbral 75
+```
+
+**Lo que hace:**
+1. 🕷️ **Busca trabajos** Full Stack en 3 portales
+2. 🧹 **Filtra spam** automáticamente  
+3. 💾 **Guarda en CSV** los trabajos válidos
+4. 🤖 **Procesa cada trabajo** con el algoritmo de fit
+5. ✨ **Genera CVs personalizados** para los que tengan fit ≥75%
+6. 📧 **Envía emails automáticamente** con CVs adjuntos
+7. 📊 **Actualiza estadísticas** en base de datos
+
+### **Ejemplo por Ubicación:**
+
+```bash
+# Buscar en diferentes ciudades
+python generador_cv_avanzado.py --scrape python --location "Córdoba"
+python generador_cv_avanzado.py --scrape java --location "Rosario"  
+python generador_cv_avanzado.py --scrape backend --location "Mendoza"
+```
+
 ### **Template de Email Generado:**
 ```
 Asunto: Aplicación para QA Automation Engineer - Juan Pérez
@@ -185,15 +303,85 @@ python generador_cv_avanzado.py --stats
    • Amazon (desarrollador_java) | 72% | 2025-01-06
 ```
 
+## ⏱️ Configuración de Delays en Web Scraping
+
+### **¿Qué son los delays y por qué son importantes?**
+
+Los **delays** son pausas entre requests para simular comportamiento humano:
+
+```python
+# Sin delays (MALO - pueden bloquearte)
+request1 -> Computrabajo (tiempo 0s)
+request2 -> Computrabajo (tiempo 0.1s)  
+request3 -> Computrabajo (tiempo 0.2s)
+# Resultado: IP bloqueada por "bot behavior"
+
+# Con delays (BUENO - comportamiento humano)
+request1 -> Computrabajo (tiempo 0s)
+[delay 2 segundos]
+request2 -> Computrabajo (tiempo 2s)
+[delay 2 segundos]  
+request3 -> Computrabajo (tiempo 4s)
+# Resultado: Scraping exitoso y ético
+```
+
+### **Configuraciones de Delay Recomendadas:**
+
+#### **⚡ Rápido (1 segundo):**
+```json
+"delay_between_requests": 1
+```
+- **Tiempo total**: ~15 segundos para búsqueda completa
+- **Riesgo**: Medio - algunos portales pueden detectar
+- **Recomendado para**: Testing rápido
+
+#### **⚖️ Equilibrado (2 segundos - DEFAULT):**
+```json
+"delay_between_requests": 2  
+```
+- **Tiempo total**: ~30 segundos para búsqueda completa
+- **Riesgo**: Bajo - comportamiento humano aceptable
+- **Recomendado para**: Uso normal diario
+
+#### **🛡️ Conservador (5 segundos):**
+```json
+"delay_between_requests": 5
+```
+- **Tiempo total**: ~75 segundos para búsqueda completa  
+- **Riesgo**: Prácticamente nulo
+- **Recomendado para**: Cuentas muy valiosas o uso intensivo
+
+### **Cálculo de Tiempo Total:**
+
+```
+Tiempo = Portales × Keywords × Delay
+
+Ejemplo con QA:
+3 portales × 5 keywords × 2 segundos = 30 segundos total
+
+Ejemplo con todas las áreas:
+3 portales × (5+5+5+5+4) keywords × 2 segundos = 144 segundos = ~2.4 minutos
+```
+
 ## 🛠️ Ejemplos de Configuración Avanzada
 
-### **Umbral Personalizado:**
+### **Scraping + Umbral Personalizado:**
 ```bash
 # Más estricto (solo fit > 85%)
-python generador_cv_avanzado.py --umbral 85
+python generador_cv_avanzado.py --scrape qa --umbral 85 --save-jobs
 
 # Menos estricto (fit > 60%)  
-python generador_cv_avanzado.py --umbral 60
+python generador_cv_avanzado.py --scrape python --umbral 60 --save-jobs
+```
+
+### **Scraping Multi-Área:**
+```bash
+# Buscar en todas las áreas (ejecutar uno por uno)
+python generador_cv_avanzado.py --scrape qa --save-jobs
+python generador_cv_avanzado.py --scrape python --save-jobs  
+python generador_cv_avanzado.py --scrape java --save-jobs
+python generador_cv_avanzado.py --scrape backend --save-jobs
+python generador_cv_avanzado.py --scrape fullstack --save-jobs
 ```
 
 ### **Configuración Personalizada:**

@@ -61,6 +61,12 @@ python generador_cv_avanzado.py --help
 # Probar con datos de ejemplo
 python generador_cv_avanzado.py --batch postulaciones_ejemplo.csv
 
+# Probar web scraping (NUEVA FUNCIONALIDAD)
+python generador_cv_avanzado.py --scrape qa
+
+# Probar flujo completo con scraping
+python generador_cv_avanzado.py --scrape python --save-jobs
+
 # Verificar que no hay errores
 python generador_cv_avanzado.py --stats
 ```
@@ -135,12 +141,16 @@ En GitHub:
 - Integración con más proveedores de email
 - Mejoras en detección de tipo de empresa
 - Dashboard con más métricas
+- Optimización de selectores de scraping
+- Nuevos portales de trabajo (Bumeran, LinkedIn)
 
 ### **Avanzadas:**
 - Web dashboard con Flask/FastAPI
 - Machine Learning para optimización
 - Integración con APIs de job boards
 - Sistema de notificaciones
+- Scraping con JavaScript (Selenium) para sitios SPA
+- API REST para integraciones externas
 
 ## 📞 Soporte para Contribuidores
 
