@@ -330,9 +330,10 @@ python generador_cv_avanzado.py --scrape java --save-jobs
 ```
 
 ### **Portales soportados:**
-- 🇦🇷 **Computrabajo** - Portal líder en Latinoamérica
-- 🇦🇷 **ZoneJobs** - Popular en Argentina
-- 🌎 **Indeed** - Portal global
+- 🇦🇷 **Computrabajo** - Portal líder en Latinoamérica ✅ FUNCIONAL
+- 🇦🇷 **ZoneJobs** - Popular en Argentina ✅ FUNCIONAL
+- 🇦🇷 **Bumeran** - Portal regional ✅ FUNCIONAL
+- 🌎 **Indeed** - ⚠️ DESHABILITADO (protecciones anti-bot muy agresivas)
 
 ### **Áreas de búsqueda disponibles:**
 - `qa` - QA Engineer, Tester, Quality Assurance, Automation, Selenium

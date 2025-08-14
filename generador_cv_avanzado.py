@@ -656,6 +656,58 @@ class GeneradorCVInteligente:
         
         return tecnologias_destacadas[:3]  # Máximo 3 tecnologías principales
 
+    def limpiar_nombre_archivo(self, texto: str) -> str:
+        """Limpia texto para usarlo como nombre de archivo válido"""
+        if not texto:
+            return "sin_nombre"
+        
+        # Caracteres problemáticos en Windows
+        caracteres_invalidos = ['<', '>', ':', '"', '/', '\\', '|', '?', '*']
+        
+        # Reemplazar caracteres problemáticos
+        texto_limpio = texto
+        for char in caracteres_invalidos:
+            texto_limpio = texto_limpio.replace(char, '_')
+        
+        # Limpiar espacios múltiples y caracteres especiales adicionales
+        texto_limpio = re.sub(r'[^\w\s\-_\.]', '_', texto_limpio)  # Solo alfanuméricos, espacios, guiones, puntos
+        texto_limpio = re.sub(r'\s+', '_', texto_limpio)  # Espacios a guiones bajos
+        texto_limpio = re.sub(r'_+', '_', texto_limpio)  # Múltiples _ a uno solo
+        texto_limpio = texto_limpio.strip('_')  # Remover _ al inicio/final
+        
+        # Limitar longitud (nombres de archivo muy largos pueden fallar)
+        if len(texto_limpio) > 50:
+            texto_limpio = texto_limpio[:50].rstrip('_')
+        
+        # Fallback si queda vacío
+        if not texto_limpio:
+            texto_limpio = "empresa"
+            
+        return texto_limpio.lower()
+
+    def obtener_headers_aleatorios(self) -> Dict[str, str]:
+        """Obtiene headers aleatorios para evitar detección"""
+        user_agents = [
+            'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
+            'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:89.0) Gecko/20100101 Firefox/89.0',
+            'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
+            'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
+        ]
+        
+        import random
+        return {
+            'User-Agent': random.choice(user_agents),
+            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
+            'Accept-Language': 'es-ES,es;q=0.9,en;q=0.8',
+            'Accept-Encoding': 'gzip, deflate, br',
+            'Connection': 'keep-alive',
+            'Upgrade-Insecure-Requests': '1',
+            'Sec-Fetch-Dest': 'document',
+            'Sec-Fetch-Mode': 'navigate',
+            'Sec-Fetch-Site': 'none',
+            'Cache-Control': 'max-age=0'
+        }
+
     def scrape_portal(self, portal_name: str, query: str, location: str = "Buenos Aires") -> List[Dict[str, str]]:
         """Scraping de un portal específico de trabajo"""
         if not self.config['scraping_config']['enabled']:
@@ -668,26 +720,49 @@ class GeneradorCVInteligente:
             return []
         
         jobs = []
-        headers = {
-            'User-Agent': self.config['scraping_config']['user_agent'],
-            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
-            'Accept-Language': 'es-ES,es;q=0.5',
-            'Accept-Encoding': 'gzip, deflate',
-            'Connection': 'keep-alive',
-        }
+        headers = self.obtener_headers_aleatorios()
         
         try:
+            # Limpiar query para URLs (especialmente ZoneJobs que no acepta espacios)
+            query_clean = query.lower().replace(' ', '-').replace('_', '-')
+            
             # Construir URL de búsqueda
-            search_url = portal_config['search_url'].format(
-                query=requests.utils.quote(query),
-                location=requests.utils.quote(location)
-            )
+            if portal_name == 'zonajobs':
+                # ZoneJobs usa formato especial: empleos-busqueda-qa.html
+                search_url = portal_config['search_url'].format(query=query_clean)
+            else:
+                # Otros portales usan query normal con URL encoding
+                search_url = portal_config['search_url'].format(
+                    query=requests.utils.quote(query),
+                    location=requests.utils.quote(location)
+                )
             
             print(f"🕷️ Scrapeando {portal_name}: {query} en {location}")
+            print(f"   📍 URL: {search_url}")
             logging.info(f"Scraping {portal_name}: {search_url}")
             
-            # Realizar request
-            response = requests.get(search_url, headers=headers, timeout=10)
+            # Realizar request con mejor manejo de errores
+            response = requests.get(search_url, headers=headers, timeout=15)
+            
+            # Verificar respuesta
+            if response.status_code == 403:
+                print(f"   ❌ 403 Forbidden - {portal_name} bloquea scraping")
+                logging.warning(f"{portal_name} bloquea scraping: 403 Forbidden")
+                return []
+            elif response.status_code == 404:
+                print(f"   ❌ 404 Not Found - URL incorrecta para {portal_name}")
+                logging.warning(f"{portal_name} URL incorrecta: 404")
+                return []
+            elif response.status_code != 200:
+                print(f"   ❌ Error {response.status_code} - {portal_name}")
+                logging.warning(f"{portal_name} error HTTP: {response.status_code}")
+                return []
+            
+            # Verificar que el contenido no esté vacío
+            if len(response.content) < 1000:
+                print(f"   ⚠️ Respuesta muy pequeña de {portal_name} - posible problema")
+                logging.warning(f"{portal_name} respuesta pequeña: {len(response.content)} bytes")
+            
             response.raise_for_status()
             
             # Parsear HTML
@@ -697,6 +772,30 @@ class GeneradorCVInteligente:
             # Buscar contenedores de trabajos
             job_containers = soup.select(selectors['job_container'])
             max_results = self.config['scraping_config']['max_results_per_portal']
+            
+            # DEBUG: Mostrar información sobre el HTML recibido
+            print(f"   🔍 HTML recibido: {len(response.content)} bytes")
+            print(f"   🎯 Selector usado: '{selectors['job_container']}'")
+            print(f"   📦 Contenedores encontrados: {len(job_containers)}")
+            
+            # Si no encuentra trabajos, hacer debug más detallado
+            if len(job_containers) == 0:
+                print(f"   🚨 DEBUG: No se encontraron contenedores con selector '{selectors['job_container']}'")
+                
+                # Mostrar algunos selectores comunes para debug
+                common_selectors = ['.job', '.aviso', '.offer', '.resultado', '.listado', '.item', 
+                                  '[data-job]', '.trabajo', '.empleo', '.card']
+                
+                for sel in common_selectors:
+                    found = soup.select(sel)
+                    if len(found) > 0:
+                        print(f"   💡 Selector alternativo '{sel}': {len(found)} elementos")
+                        
+                # Mostrar parte del HTML para debug manual
+                print(f"   📄 Primeros 500 chars del HTML:")
+                print(f"   {str(soup)[:500]}...")
+                
+                return []
             
             for i, container in enumerate(job_containers[:max_results]):
                 try:
@@ -842,6 +941,226 @@ class GeneradorCVInteligente:
         print(f"   • Portales consultados: {len([p for p in self.config['scraping_config']['portales'] if self.config['scraping_config']['portales'][p]['enabled']])}")
         
         return trabajos_unicos
+
+    def test_portales(self) -> Dict[str, bool]:
+        """Testa la conectividad de todos los portales configurados"""
+        print("\n🧪 TESTING DE PORTALES")
+        print("="*50)
+        
+        resultados = {}
+        headers = self.obtener_headers_aleatorios()
+        
+        for portal_name, portal_config in self.config['scraping_config']['portales'].items():
+            if not portal_config['enabled']:
+                print(f"⏭️ {portal_name}: Deshabilitado")
+                resultados[portal_name] = False
+                continue
+            
+            try:
+                # Probar URL base
+                base_url = portal_config['base_url']
+                print(f"🌐 Testing {portal_name}: {base_url}")
+                
+                response = requests.get(base_url, headers=headers, timeout=10)
+                
+                if response.status_code == 200:
+                    print(f"   ✅ Base OK ({response.status_code})")
+                    
+                    # Probar URL de búsqueda con query simple
+                    if portal_name == 'zonajobs':
+                        search_url = portal_config['search_url'].format(query='developer')
+                    else:
+                        search_url = portal_config['search_url'].format(
+                            query='developer',
+                            location='Buenos Aires'
+                        )
+                    
+                    print(f"   🔍 Testing búsqueda: {search_url}")
+                    search_response = requests.get(search_url, headers=headers, timeout=10)
+                    
+                    if search_response.status_code == 200:
+                        print(f"   ✅ Búsqueda OK ({search_response.status_code}) - {len(search_response.content)} bytes")
+                        resultados[portal_name] = True
+                    else:
+                        print(f"   ❌ Búsqueda FALLA ({search_response.status_code})")
+                        resultados[portal_name] = False
+                        
+                else:
+                    print(f"   ❌ Base FALLA ({response.status_code})")
+                    resultados[portal_name] = False
+                    
+            except requests.exceptions.RequestException as e:
+                print(f"   ❌ Error de conexión: {e}")
+                resultados[portal_name] = False
+            except Exception as e:
+                print(f"   ❌ Error inesperado: {e}")
+                resultados[portal_name] = False
+            
+            # Delay entre tests
+            time.sleep(1)
+        
+        print(f"\n📊 RESUMEN DE TESTING:")
+        working = sum(1 for v in resultados.values() if v)
+        total = len(resultados)
+        print(f"   • Portales funcionando: {working}/{total}")
+        
+        for portal, status in resultados.items():
+            status_icon = "✅" if status else "❌"
+            print(f"   • {portal}: {status_icon}")
+        
+        return resultados
+
+    def debug_html_portal(self, portal_name: str, query: str = "qa") -> str:
+        """Debug del HTML de un portal específico para encontrar selectores correctos"""
+        portal_config = self.config['scraping_config']['portales'].get(portal_name)
+        if not portal_config:
+            print(f"❌ Portal {portal_name} no encontrado en configuración")
+            return ""
+        
+        headers = self.obtener_headers_aleatorios()
+        query_clean = query.lower().replace(' ', '-').replace('_', '-')
+        
+        try:
+            # Construir URL
+            if portal_name == 'zonajobs':
+                search_url = portal_config['search_url'].format(query=query_clean)
+            else:
+                search_url = portal_config['search_url'].format(query=query, location="Buenos Aires")
+            
+            print(f"🔍 DEBUG HTML de {portal_name.upper()}")
+            print(f"📍 URL: {search_url}")
+            
+            # Realizar request
+            response = requests.get(search_url, headers=headers, timeout=15)
+            print(f"📊 Status Code: {response.status_code}")
+            print(f"📦 Tamaño: {len(response.content)} bytes")
+            
+            if response.status_code == 200:
+                soup = BeautifulSoup(response.content, 'html.parser')
+                
+                # Guardar HTML completo para análisis
+                debug_filename = f"debug_{portal_name}_{query}.html"
+                with open(debug_filename, 'w', encoding='utf-8') as f:
+                    f.write(soup.prettify())
+                
+                print(f"💾 HTML guardado en: {debug_filename}")
+                
+                # Buscar posibles selectores de trabajos
+                print(f"\n🎯 BUSCANDO POSIBLES SELECTORES:")
+                possible_selectors = [
+                    # Selectores comunes de trabajos
+                    '.job', '.aviso', '.offer', '.resultado', '.listado', '.item',
+                    '.card', '.trabajo', '.empleo', '.position', '.vacancy',
+                    '[data-job]', '[data-aviso]', '.search-result',
+                    '.job-item', '.job-card', '.job-listing', '.job-offer',
+                    
+                    # Selectores específicos de ZoneJobs (basados en inspección manual)
+                    '.avisoItem', '.resultado-aviso', '.aviso-resultado',
+                    '.listado-item', '.trabajo-item', '.offer-item',
+                    '.empleo-card', '.job-container', '.empleo-container',
+                    
+                    # Selectores por estructura HTML común
+                    'article', 'section[class*="job"]', 'div[class*="aviso"]',
+                    'div[class*="trabajo"]', 'div[class*="empleo"]', 'li[class*="job"]',
+                    
+                    # Selectores por ID o data attributes
+                    '[id*="job"]', '[id*="aviso"]', '[data-*="job"]'
+                ]
+                
+                for selector in possible_selectors:
+                    elements = soup.select(selector)
+                    if len(elements) > 0:
+                        print(f"   💡 '{selector}': {len(elements)} elementos")
+                        
+                        # Mostrar contenido del primer elemento
+                        if elements:
+                            first_elem = elements[0]
+                            text_preview = first_elem.get_text(strip=True)[:100]
+                            print(f"      Ejemplo: {text_preview}...")
+                
+                # Análisis específico por portal
+                print(f"\n🔧 ANÁLISIS ESPECÍFICO {portal_name.upper()}:")
+                
+                # Buscar títulos que contengan palabras relacionadas con trabajo
+                job_titles = soup.find_all(string=lambda text: text and len(text.strip()) > 5 and any(
+                    word in text.lower() for word in ['qa', 'tester', 'automation', 'engineer', 'developer', 
+                                                     'programador', 'analista', 'junior', 'senior', 'ssr', 
+                                                     'python', 'java', 'react', 'angular', 'vue']
+                ))
+                
+                if job_titles:
+                    print(f"   📋 Textos de trabajo encontrados: {len(job_titles)}")
+                    for i, title in enumerate(job_titles[:5]):
+                        clean_title = title.strip()
+                        if len(clean_title) > 10:  # Solo títulos significativos
+                            print(f"      {i+1}. {clean_title[:80]}...")
+                            parent = title.parent
+                            if parent:
+                                classes = parent.get('class', [])
+                                parent_info = f"{parent.name}"
+                                if classes:
+                                    parent_info += f" class='{' '.join(classes)}'"
+                                print(f"         └── Padre: {parent_info}")
+                                
+                                # Buscar el contenedor abuelo
+                                grandparent = parent.parent
+                                if grandparent and grandparent.name not in ['body', 'html']:
+                                    gp_classes = grandparent.get('class', [])
+                                    gp_info = f"{grandparent.name}"
+                                    if gp_classes:
+                                        gp_info += f" class='{' '.join(gp_classes)}'"
+                                    print(f"         └── Abuelo: {gp_info}")
+                else:
+                    print("   ❌ No se encontraron textos relacionados con trabajos")
+                    
+                # Buscar estructura principal del contenido
+                print(f"\n🏗️ ANÁLISIS DE ESTRUCTURA HTML:")
+                main_containers = soup.select('main, .main, #main, .content, .results, .listings, .jobs, .avisos')
+                for container in main_containers[:3]:
+                    if container:
+                        classes = container.get('class', [])
+                        id_val = container.get('id', '')
+                        print(f"   📦 {container.name} id='{id_val}' class='{' '.join(classes)}'")
+                        
+                        # Buscar hijos directos que podrían ser trabajos
+                        children = container.find_all(recursive=False)
+                        print(f"      └── {len(children)} hijos directos")
+                        for child in children[:3]:
+                            child_classes = child.get('class', [])
+                            child_id = child.get('id', '')
+                            text_preview = child.get_text(strip=True)[:50]
+                            print(f"         • {child.name} id='{child_id}' class='{' '.join(child_classes)}' text='{text_preview}...'")
+                
+                # Sugerir selectores más probables
+                print(f"\n💡 SELECTORES MÁS PROBABLES para {portal_name.upper()}:")
+                priority_selectors = []
+                if portal_name == 'zonajobs':
+                    priority_selectors = ['article', '.aviso', '.resultado', '.job', '.listado li', 'div[class*="aviso"]', 'section']
+                elif portal_name == 'computrabajo':
+                    priority_selectors = ['.box_offer', '.offer', '.job', '.resultado', 'article', '.aviso']
+                elif portal_name == 'bumeran':
+                    priority_selectors = ['.avisoItem', '.job-item', '.resultado', '.aviso', 'article', '.offer']
+                
+                for selector in priority_selectors:
+                    found = soup.select(selector)
+                    if found:
+                        priority = "🔥 ALTA PRIORIDAD" if len(found) >= 3 and len(found) <= 20 else "⭐ Media prioridad"
+                        print(f"   {priority} '{selector}': {len(found)} elementos")
+                        
+                        # Mostrar ejemplo del primer elemento
+                        if found:
+                            first = found[0]
+                            text_sample = first.get_text(strip=True)[:60]
+                            print(f"         Ejemplo: {text_sample}...")
+                
+                return debug_filename
+            else:
+                print(f"❌ Error HTTP: {response.status_code}")
+                return ""
+                
+        except Exception as e:
+            print(f"❌ Error en debug: {e}")
+            return ""
 
     def guardar_trabajos_csv(self, trabajos: List[Dict[str, str]], filename: str = None) -> str:
         """Guarda trabajos encontrados en CSV para procesamiento batch"""
@@ -1365,7 +1684,8 @@ class GeneradorCVInteligente:
     def guardar_postulacion(self, texto_postulacion, empresa, tipo_posicion):
         """Guarda la postulación con metadatos"""
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        nombre_archivo = f"postulacion_{empresa}_{tipo_posicion}_{timestamp}.txt"
+        empresa_limpia = self.limpiar_nombre_archivo(empresa)
+        nombre_archivo = f"postulacion_{empresa_limpia}_{tipo_posicion}_{timestamp}.txt"
         path_completo = os.path.join(self.carpeta_salida, nombre_archivo)
         
         contenido = f"""EMPRESA: {empresa}
@@ -1454,7 +1774,8 @@ FECHA: {datetime.now().strftime("%Y-%m-%d %H:%M:%S")}
         
         # 7. Generar archivos
         timestamp = datetime.now().strftime("%Y%m%d_%H%M")
-        nombre_pdf = os.path.join(self.carpeta_salida, f"cv_{empresa.lower().replace(' ', '_')}_{tipo_posicion}_{timestamp}.pdf")
+        empresa_limpia = self.limpiar_nombre_archivo(empresa)
+        nombre_pdf = os.path.join(self.carpeta_salida, f"cv_{empresa_limpia}_{tipo_posicion}_{timestamp}.pdf")
         
         if self.generar_cv_pdf(cv_adaptado, nombre_pdf):
             print(f">>> CV generado: {nombre_pdf}")
@@ -1509,7 +1830,8 @@ FECHA: {datetime.now().strftime("%Y-%m-%d %H:%M:%S")}
     def guardar_resumen(self, empresa, tipo_posicion, nivel, titulo, keywords, speech, analisis_fit, cv_path, postulacion_path):
         """Guarda un resumen completo de la postulación procesada"""
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        resumen_path = os.path.join(self.carpeta_salida, f"resumen_{empresa.lower().replace(' ', '_')}_{timestamp}.json")
+        empresa_limpia = self.limpiar_nombre_archivo(empresa)
+        resumen_path = os.path.join(self.carpeta_salida, f"resumen_{empresa_limpia}_{timestamp}.json")
         
         resumen = {
             'empresa': empresa,
@@ -1569,6 +1891,10 @@ Ejemplos de uso:
                         help='Ubicación para búsqueda (default: Buenos Aires)')
     parser.add_argument('--save-jobs', action='store_true',
                         help='Guardar trabajos encontrados en CSV')
+    parser.add_argument('--test-portales', action='store_true',
+                        help='Testear conectividad de todos los portales')
+    parser.add_argument('--debug-html', 
+                        help='Debug HTML de un portal específico (ej: zonajobs)')
     
     return parser.parse_args()
 
@@ -1602,6 +1928,23 @@ def main():
     if args.stats:
         # Modo estadísticas
         generador.mostrar_dashboard()
+        return
+    
+    if args.test_portales:
+        # Modo testing de portales
+        print(">>> Generador de CV Inteligente v3.1 - TESTING DE PORTALES")
+        generador.test_portales()
+        return
+    
+    if args.debug_html:
+        # Modo debug HTML
+        print(f">>> Generador de CV Inteligente v3.1 - DEBUG HTML")
+        debug_file = generador.debug_html_portal(args.debug_html, "qa")
+        if debug_file:
+            print(f"\n💡 Para encontrar selectores correctos:")
+            print(f"   1. Abre {debug_file} en un navegador")
+            print(f"   2. Inspecciona elementos de trabajos")
+            print(f"   3. Actualiza config.json con selectores correctos")
         return
     
     if args.scrape:

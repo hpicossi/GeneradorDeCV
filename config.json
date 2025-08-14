@@ -128,20 +128,21 @@
         }
       },
       "zonajobs": {
-        "enabled": true,
+        "enabled": false,
         "base_url": "https://www.zonajobs.com.ar",
-        "search_url": "https://www.zonajobs.com.ar/empleos/{query}.html",
+        "search_url": "https://www.zonajobs.com.ar/empleos-busqueda-{query}.html",
         "job_selectors": {
-          "job_container": ".aviso-item",
-          "title": ".aviso-title",
-          "company": ".aviso-empresa",
-          "description": ".aviso-descripcion",
-          "salary": ".aviso-salario",
-          "location": ".aviso-ubicacion"
-        }
+          "job_container": "#listado-avisos > div",
+          "title": "h2",
+          "company": ".sc-hfLElm h3",
+          "description": "",
+          "salary": "",
+          "location": ".sc-kQZOhr h3"
+        },
+        "note": "Deshabilitado temporalmente - ZoneJobs es SPA (React) que carga contenido con JavaScript"
       },
       "indeed": {
-        "enabled": true,
+        "enabled": false,
         "base_url": "https://ar.indeed.com",
         "search_url": "https://ar.indeed.com/empleos?q={query}&l={location}",
         "job_selectors": {
@@ -151,15 +152,30 @@
           "description": ".job-snippet",
           "salary": ".salary-snippet",
           "location": ".companyLocation"
-        }
+        },
+        "note": "Deshabilitado temporalmente - Indeed bloquea scraping agresivamente"
+      },
+      "bumeran": {
+        "enabled": false,
+        "base_url": "https://www.bumeran.com.ar",
+        "search_url": "https://www.bumeran.com.ar/empleos-busqueda-{query}.html?region=1",
+        "job_selectors": {
+          "job_container": ".job-item",
+          "title": ".job-title",
+          "company": ".job-company",
+          "description": ".job-description",
+          "salary": ".job-salary",
+          "location": ".job-location"
+        },
+        "note": "Deshabilitado temporalmente - Verificando selectores CSS correctos"
       }
     },
     "keywords_busqueda": {
-      "qa": ["qa engineer", "tester", "quality assurance", "automation", "selenium"],
-      "python": ["python developer", "backend python", "django", "fastapi", "flask"],
-      "java": ["java developer", "spring boot", "java programmer", "spring", "hibernate"],
-      "backend": ["backend developer", "api developer", "microservicios", "rest api", "node.js"],
-      "fullstack": ["full stack developer", "fullstack", "desarrollador full stack", "full-stack"]
+      "qa": ["qa", "tester", "automation", "selenium", "testing"],
+      "python": ["python", "django", "fastapi", "flask", "backend"],
+      "java": ["java", "spring", "hibernate", "jvm", "maven"],
+      "backend": ["backend", "api", "microservicios", "rest", "nodejs"],
+      "fullstack": ["fullstack", "full-stack", "desarrollador", "developer", "programador"]
     },
     "filtros": {
       "ubicaciones": ["Buenos Aires", "CABA", "Cordoba", "Rosario", "Argentina"],
